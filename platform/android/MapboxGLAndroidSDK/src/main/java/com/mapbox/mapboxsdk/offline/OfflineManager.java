@@ -10,7 +10,6 @@ import android.support.annotation.NonNull;
 
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
-import com.mapbox.mapboxsdk.storage.Resource;
 
 import java.io.File;
 
@@ -82,22 +81,6 @@ public class OfflineManager {
     void onError(String error);
   }
 
-  /**
-   * This callback allows implementors to transform URLs before they are requested
-   * from the internet. This can be used add or remove custom parameters, or reroute
-   * certain requests to other servers or endpoints.
-   */
-  public interface ResourceTransformCallback {
-    /**
-     * Called whenever a URL needs to be transformed.
-     *
-     * @param kind The kind of URL to be transformed.
-     * @param offlineRegions The original URL to be transformed.
-     * @return A URL that will now be downloaded.
-     */
-    String onURL(@Resource.Kind int kind, String url);
-  }
-
   /*
    * Constructors
    */
@@ -105,7 +88,7 @@ public class OfflineManager {
     // Get a pointer to the DefaultFileSource instance
     String cachePath = getDatabasePath(context) + File.separator + DATABASE_NAME;
     String apkPath = context.getPackageCodePath();
-    mDefaultFileSourcePtr = sharedDefaultFileSource(cachePath, apkPath);
+    mDefaultFileSourcePtr = createDefaultFileSource(cachePath, apkPath);
     setAccessToken(mDefaultFileSourcePtr, Mapbox.getAccessToken());
 
     // Delete any existing previous ambient cache database
@@ -282,18 +265,6 @@ public class OfflineManager {
     });
   }
 
-  /**
-   * Sets a callback for transforming URLs requested from the internet
-   * <p>
-   * The callback will be executed on the main thread once for every requested URL.
-   * </p>
-   *
-   * @param callback the callback to be invoked
-   */
-  public void setResourceTransform(@NonNull final ResourceTransformCallback callback) {
-    setResourceTransform(mDefaultFileSourcePtr, callback);
-  }
-
   /*
   * Changing or bypassing this limit without permission from Mapbox is prohibited
   * by the Mapbox Terms of Service.
@@ -306,7 +277,7 @@ public class OfflineManager {
   /*
    * Native methods
    */
-  private native long sharedDefaultFileSource(
+  private native long createDefaultFileSource(
     String cachePath, String assetRoot);
 
   private native void setAccessToken(long defaultFileSourcePtr, String accessToken);
@@ -319,9 +290,6 @@ public class OfflineManager {
   private native void createOfflineRegion(
     long defaultFileSourcePtr, OfflineRegionDefinition definition,
     byte[] metadata, CreateOfflineRegionCallback callback);
-
-  private native void setResourceTransform(
-    long defaultFileSourcePtr, ResourceTransformCallback callback);
 
   private native void setOfflineMapboxTileCountLimit(
     long defaultFileSourcePtr, long limit);
