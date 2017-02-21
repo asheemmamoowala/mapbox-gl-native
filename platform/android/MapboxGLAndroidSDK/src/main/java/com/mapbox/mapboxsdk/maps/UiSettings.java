@@ -369,7 +369,8 @@ public final class UiSettings {
       return;
     }
 
-    compassView.update(cameraPosition.bearing);
+    // compass needs reverse bearing #8123
+    compassView.update(-cameraPosition.bearing);
   }
 
   /**

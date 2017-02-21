@@ -82,8 +82,9 @@ public final class CompassView extends AppCompatImageView implements Runnable, F
   }
 
   public boolean isFacingNorth() {
-    // increase range more than just 0.0
-    return direction >= 359.0 || direction <= 1.0;
+    // increase rage more than just 0.0
+    double absDirection = Math.abs(direction);
+    return absDirection >= 359.0 || absDirection <= 1.0;
   }
 
   @Override
