@@ -6,22 +6,12 @@ if (NOT MBGL_PLATFORM)
     endif()
 endif()
 
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/node_modules/node-cmake/FindNodeJS.cmake)
-    message(FATAL_ERROR "Can't find node-cmake")
-endif()
-
 # Load Node.js
-set(NodeJS_CXX_STANDARD 14 CACHE INTERNAL "Use C++14" FORCE)
-set(NodeJS_DOWNLOAD ON CACHE INTERNAL "Download node.js sources" FORCE)
-set(NodeJS_USE_CLANG_STDLIB OFF CACHE BOOL "Don't use libc++ by default" FORCE)
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/node_modules/node-cmake)
-find_package(NodeJS)
+include(cmake/NodeJS.cmake)
+nodejs_init()
 
-find_program(npm_EXECUTABLE
-    NAMES npm
-    PATHS ${NodeJS_ROOT_DIR})
-
-if (NOT npm_EXECUTABLE)
+find_program(NPM_EXECUTABLE NAMES npm)
+if (NOT NPM_EXECUTABLE)
     message(FATAL_ERROR "Could not find npm")
 endif()
 
@@ -30,7 +20,7 @@ function(_npm_install DIRECTORY NAME ADDITIONAL_DEPS)
     if("${DIRECTORY}/package.json" IS_NEWER_THAN "${DIRECTORY}/node_modules/.${NAME}.stamp")
         message(STATUS "Running 'npm install' for ${NAME}...")
         execute_process(
-            COMMAND ${NodeJS_EXECUTABLE} ${npm_EXECUTABLE} install --ignore-scripts
+            COMMAND ${NODEJS_BINARY} ${NPM_EXECUTABLE} install --ignore-scripts
             WORKING_DIRECTORY "${DIRECTORY}"
             RESULT_VARIABLE NPM_INSTALL_FAILED)
         if(NOT NPM_INSTALL_FAILED)
@@ -40,7 +30,7 @@ function(_npm_install DIRECTORY NAME ADDITIONAL_DEPS)
 
     add_custom_command(
         OUTPUT "${DIRECTORY}/node_modules/.${NAME}.stamp"
-        COMMAND ${NodeJS_EXECUTABLE} ${npm_EXECUTABLE} install --ignore-scripts
+        COMMAND ${NODEJS_BINARY} ${NPM_EXECUTABLE} install --ignore-scripts
         COMMAND ${CMAKE_COMMAND} -E touch "${DIRECTORY}/node_modules/.${NAME}.stamp"
         WORKING_DIRECTORY "${DIRECTORY}"
         DEPENDS ${ADDITIONAL_DEPS} "${DIRECTORY}/package.json"
