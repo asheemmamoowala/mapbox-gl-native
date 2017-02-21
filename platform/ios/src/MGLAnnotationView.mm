@@ -10,7 +10,6 @@
 @interface MGLAnnotationView () <UIGestureRecognizerDelegate>
 
 @property (nonatomic, readwrite, nullable) NSString *reuseIdentifier;
-@property (nonatomic, readwrite, nullable) id <MGLAnnotation> annotation;
 @property (nonatomic, readwrite) CATransform3D lastAppliedScaleTransform;
 @property (nonatomic, weak) UIPanGestureRecognizer *panGestureRecognizer;
 @property (nonatomic, weak) UILongPressGestureRecognizer *longPressRecognizer;
