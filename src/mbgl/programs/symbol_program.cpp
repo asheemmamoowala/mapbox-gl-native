@@ -60,7 +60,7 @@ Values makeSDFValues(const style::SymbolPropertyValues& values,
     const float gammaScale = scale * (values.pitchAlignment == AlignmentType::Map
                               ? std::cos(state.getPitch())
                               : 1.0) * state.getCameraToCenterDistance();
-        
+    
     return makeValues<Values>(
         values,
         texsize,
