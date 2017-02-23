@@ -37,6 +37,7 @@
 #import <mbgl/util/chrono.hpp>
 #import <mbgl/util/run_loop.hpp>
 #import <mbgl/util/shared_thread_pool.hpp>
+#import <mbgl/style/filter.hpp>
 
 #import <map>
 #import <unordered_map>
@@ -2523,6 +2524,21 @@ public:
 
 - (NS_ARRAY_OF(id <MGLFeature>) *)visibleFeaturesInRect:(NSRect)rect {
     return [self visibleFeaturesInRect:rect inStyleLayersWithIdentifiers:nil];
+}
+
+- (NS_ARRAY_OF(id <MGLFeature>) *)tallBuildingsInRect:(NSRect)rect {
+    mbgl::ScreenBox screenBox = {
+        { NSMinX(rect), NSHeight(self.bounds) - NSMaxY(rect) },
+        { NSMaxX(rect), NSHeight(self.bounds) - NSMinY(rect) },
+    };
+
+    mbgl::style::EqualsFilter buildTypeFilter = { "type" , std::string("building") };
+    mbgl::style::GreaterThanEqualsFilter tallFilter = { "height" , 6.0 };
+    mbgl::style::AllFilter  tallBuildingFilter = { {buildTypeFilter, tallFilter} };
+
+    std::vector<mbgl::Feature> features = _mbglMap->queryRenderedFeatures(screenBox, { {} , { buildTypeFilter }});
+    return MGLFeaturesFromMBGLFeatures(features);
+
 }
 
 - (NS_ARRAY_OF(id <MGLFeature>) *)visibleFeaturesInRect:(NSRect)rect inStyleLayersWithIdentifiers:(NS_SET_OF(NSString *) *)styleLayerIdentifiers {

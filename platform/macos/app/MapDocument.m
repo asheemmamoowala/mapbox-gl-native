@@ -474,6 +474,15 @@ NS_ARRAY_OF(id <MGLAnnotation>) *MBXFlattenedShapes(NS_ARRAY_OF(id <MGLAnnotatio
     _randomizesCursorsOnDroppedPins = !_randomizesCursorsOnDroppedPins;
 }
 
+- (IBAction)findTallBuildings:(id)sender {
+    [self removeAllAnnotations:sender];
+    
+    NSRect bounds = self.mapView.bounds;
+    NSArray *features = [self.mapView tallBuildingsInRect:bounds];
+    NSArray *flattenedFeatures = MBXFlattenedShapes(features);
+    [self.mapView addAnnotations:flattenedFeatures];
+}
+
 - (IBAction)dropManyPins:(id)sender {
     [self removeAllAnnotations:sender];
 
@@ -943,7 +952,7 @@ NS_ARRAY_OF(id <MGLAnnotation>) *MBXFlattenedShapes(NS_ARRAY_OF(id <MGLAnnotatio
     if (menuItem.action == @selector(giveFeedback:)) {
         return YES;
     }
-    return NO;
+    return YES;
 }
 
 - (NSUInteger)indexOfStyleInToolbarItem {

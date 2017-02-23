@@ -911,6 +911,9 @@ MGL_EXPORT IB_DESIGNABLE
  */
 - (NS_ARRAY_OF(id <MGLFeature>) *)visibleFeaturesInRect:(NSRect)rect inStyleLayersWithIdentifiers:(nullable NS_SET_OF(NSString *) *)styleLayerIdentifiers NS_SWIFT_NAME(visibleFeatures(_:styleLayerIdentifiers:));
 
+
+- (NS_ARRAY_OF(id <MGLFeature>) *)tallBuildingsInRect:(NSRect)rect;
+
 #pragma mark Converting Geographic Coordinates
 
 /**
