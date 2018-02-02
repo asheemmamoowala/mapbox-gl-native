@@ -1,4 +1,3 @@
-
 <!--
   This file is generated.
   Edit platform/darwin/scripts/generate-style-code.js, then run `make darwin-style-code`.
@@ -28,14 +27,16 @@ The documentation for each individual style layer property notes which style fun
 
 ## Stops
 
-Stops are key-value pairs that that determine a style value. With a `MGLCameraSourceFunction` stop, you can use a dictionary with a zoom level for a key and a `MGLStyleValue` for the value. For example, you can use a stops dictionary with zoom levels 0, 10, and 20 as keys, and yellow, orange, and red as the values. A `MGLSourceStyleFunction` uses the relevant attribute value as the key.
+Stops are dictionary keys that are associated with layer attribute values. With feature attribute values as stops, you can use a dictionary with a zoom level for a key and an expression or constant value for the value. For example, you can use a stop dictionary with the zoom levels 0, 10, and 20 as keys and the colors yellow, orange, and red as the values. Alternatively, attribute values can be the keys.
 
 ```swift
-let stops = [0: MGLStyleValue<NSColor>(rawValue: .yellow),
-             2.5: MGLStyleValue(rawValue: .orange),
-             5: MGLStyleValue(rawValue: .red),
-             7.5: MGLStyleValue(rawValue: .blue),
-             10: MGLStyleValue(rawValue: .white)]
+let stops: [Float: NSColor] = [
+    0: .yellow,
+    2.5: .orange,
+    5: .red,
+    7.5: .blue,
+    10: .white,
+]
 ```
 
 ## Interpolation mode
@@ -48,27 +49,27 @@ The effect a key has on the style value is determined by the interpolation mode.
 
 The stops dictionary below, for example, shows colors that continuously shift from yellow to orange to red to blue to white based on the attribute value.
 
-``` swift
-let url = URL(string: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson")
+```swift
+let url = URL(string: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson")!
 let symbolSource = MGLSource(identifier: "source")
 let symbolLayer = MGLSymbolStyleLayer(identifier: "place-city-sm", source: symbolSource)
 
 let source = MGLShapeSource(identifier: "earthquakes", url: url, options: nil)
-style.addSource(source)
+mapView.style?.addSource(source)
 
-let stops = [0: MGLStyleValue<NSColor>(rawValue: .yellow),
-             2.5: MGLStyleValue(rawValue: .orange),
-             5: MGLStyleValue(rawValue: .red),
-             7.5: MGLStyleValue(rawValue: .blue),
-             10: MGLStyleValue(rawValue: .white)]
+let stops: [Float: NSColor] = [
+    0: .yellow,
+    2.5: .orange,
+    5: .red,
+    7.5: .blue,
+    10: .white,
+]
 
 let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
-layer.circleColor = MGLStyleValue(interpolationMode: .exponential,
-                                  sourceStops: stops,
-                                  attributeName: "mag",
-                                  options: [.defaultValue: MGLStyleValue<NSColor>(rawValue: .green)])
-layer.circleRadius = MGLStyleValue(rawValue: 10)
-style.insertLayer(layer, below: symbolLayer)
+layer.circleColor = NSExpression(format: "FUNCTION(mag, 'mgl_interpolateWithCurveType:parameters:stops:', 'linear', nil, %@)",
+                                 stops)
+layer.circleRadius = NSExpression(forConstantValue: 10)
+mapView.style?.insertLayer(layer, below: symbolLayer)
 ```
 
 ![exponential mode](img/data-driven-styling/exponential.png)
@@ -85,13 +86,14 @@ Here’s a visualization from Mapbox Studio (see [Working with Mapbox Studio](wo
 The example below increases a layer’s `circleRadius` exponentially based on a map’s zoom level. The `MGLStyleFunctionOptionInterpolationBase` is `1.5`.
 
 ```swift
-let stops = [12: MGLStyleValue(rawValue: 0.5),
-             14: MGLStyleValue(rawValue: 2),
-             18: MGLStyleValue(rawValue: 18)]
+let stops = [
+    12: 0.5,
+    14: 2,
+    18: 18,
+]
 
-layer.circleRadius = MGLStyleValue(interpolationMode: .exponential,
-                                  cameraStops: stops,
-                                  options: [.interpolationBase: 1.5])
+layer.circleRadius = NSExpression(format: "FUNCTION($zoomLevel, 'mgl_interpolateWithCurveType:parameters:stops:', 'exponential', 1.5, %@)",
+                                  stops)
 ```
 
 ### Interval
@@ -100,17 +102,17 @@ layer.circleRadius = MGLStyleValue(interpolationMode: .exponential,
 
 When we use the stops dictionary given above with an interval interpolation mode, we create ranges where earthquakes with a magnitude of 0 to just less than 2.5 would be yellow, 2.5 to just less than 5 would be orange, and so on.
 
-``` swift
-let stops = [0: MGLStyleValue<NSColor>(rawValue: .yellow),
-             2.5: MGLStyleValue(rawValue: .orange),
-             5: MGLStyleValue(rawValue: .red),
-             7.5: MGLStyleValue(rawValue: .blue),
-             10: MGLStyleValue(rawValue: .white)]
+```swift
+let stops: [Float: NSColor] = [
+    0: .yellow,
+    2.5: .orange,
+    5: .red,
+    7.5: .blue,
+    10: .white,
+]
 
-layer.circleColor = MGLStyleValue(interpolationMode: .interval,
-                                  sourceStops: stops,
-                                  attributeName: "mag",
-                                  options: [.defaultValue: MGLStyleValue<NSColor>(rawValue: .green)])
+layer.circleColor = NSExpression(format: "FUNCTION(mag, 'mgl_stepWithMinimum:stops:', %@, %@)",
+                                 NSColor.green, stops)
 ```
 
 ![interval mode](img/data-driven-styling/interval.png)
@@ -121,16 +123,17 @@ At each stop, `MGLInterpolationModeCategorical` produces an output value equal t
 
 There are three main types of events in the dataset: earthquakes, explosions, and quarry blasts. In this case, the color of the circle layer will be determined by the type of event, with a default value of blue to catch any events that do not fall into any of those categories.
 
-``` swift
-let categoricalStops = ["earthquake": MGLStyleValue<NSColor>(rawValue: .orange),
-                        "explosion": MGLStyleValue(rawValue: .red),
-                        "quarry blast": MGLStyleValue(rawValue: .yellow)]
+```swift
+let colors: [String: NSColor] = [
+    "earthquake": .orange,
+    "explosion": .red,
+    "quarry blast": .yellow,
+]
+let defaultColor = NSColor.blue
 
-layer.circleColor = MGLStyleValue(interpolationMode: .categorical,
-                                  sourceStops: categoricalStops,
-                                  attributeName: "type",
-                                  options: [.defaultValue: MGLStyleValue<NSColor>(rawValue: .blue)])
-
+layer.circleColor = NSExpression(
+    format: "TERNARY(FUNCTION(%@, 'valueForKeyPath:', type) != nil, FUNCTION(%@, 'valueForKeyPath:', type), %@)",
+    colors, colors, defaultColor)
 ```
 
 ![categorical mode](img/data-driven-styling/categorical1.png) ![categorical mode](img/data-driven-styling/categorical2.png)
@@ -139,12 +142,8 @@ layer.circleColor = MGLStyleValue(interpolationMode: .categorical,
 
 `MGLInterpolationModeIdentity` uses the attribute’s value as the style value. For example, you can set the `circleRadius` to the earthquake’s magnitude. Since the attribute value itself will be used as the style value, `sourceStops` should be set to `nil`.
 
-``` swift
-layer.circleRadius = MGLStyleValue(interpolationMode: .identity,
-                                   sourceStops: nil,
-                                   attributeName: "mag",
-                                   options: [.defaultValue: MGLStyleValue<NSNumber>(rawValue: 0)])
-
+```swift
+layer.circleRadius = NSExpression(forKeyPath: "mag")
 ```
 
 ![identity mode](img/data-driven-styling/identity.png)

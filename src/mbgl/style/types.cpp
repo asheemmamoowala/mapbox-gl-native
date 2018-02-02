@@ -11,6 +11,8 @@ MBGL_DEFINE_ENUM(SourceType, {
     { SourceType::GeoJSON, "geojson" },
     { SourceType::Video, "video" },
     { SourceType::Annotations, "annotations" },
+    { SourceType::Image, "image" },
+    { SourceType::CustomVector, "customvector" }
 });
 
 MBGL_DEFINE_ENUM(VisibilityType, {
@@ -21,6 +23,11 @@ MBGL_DEFINE_ENUM(VisibilityType, {
 MBGL_DEFINE_ENUM(TranslateAnchorType, {
     { TranslateAnchorType::Map, "map" },
     { TranslateAnchorType::Viewport, "viewport" },
+});
+
+MBGL_DEFINE_ENUM(HillshadeIlluminationAnchorType, {
+    { HillshadeIlluminationAnchorType::Map, "map" },
+    { HillshadeIlluminationAnchorType::Viewport, "viewport" },
 });
 
 MBGL_DEFINE_ENUM(RotateAnchorType, {
@@ -52,16 +59,16 @@ MBGL_DEFINE_ENUM(SymbolPlacementType, {
     { SymbolPlacementType::Line, "line" },
 });
 
-MBGL_DEFINE_ENUM(TextAnchorType, {
-    { TextAnchorType::Center, "center" },
-    { TextAnchorType::Left, "left" },
-    { TextAnchorType::Right, "right" },
-    { TextAnchorType::Top, "top" },
-    { TextAnchorType::Bottom, "bottom" },
-    { TextAnchorType::TopLeft, "top-left" },
-    { TextAnchorType::TopRight, "top-right" },
-    { TextAnchorType::BottomLeft, "bottom-left" },
-    { TextAnchorType::BottomRight, "bottom-right" }
+MBGL_DEFINE_ENUM(SymbolAnchorType, {
+    { SymbolAnchorType::Center, "center" },
+    { SymbolAnchorType::Left, "left" },
+    { SymbolAnchorType::Right, "right" },
+    { SymbolAnchorType::Top, "top" },
+    { SymbolAnchorType::Bottom, "bottom" },
+    { SymbolAnchorType::TopLeft, "top-left" },
+    { SymbolAnchorType::TopRight, "top-right" },
+    { SymbolAnchorType::BottomLeft, "bottom-left" },
+    { SymbolAnchorType::BottomRight, "bottom-right" }
 });
 
 MBGL_DEFINE_ENUM(TextJustifyType, {
@@ -87,6 +94,11 @@ MBGL_DEFINE_ENUM(IconTextFitType, {
     { IconTextFitType::Both, "both" },
     { IconTextFitType::Width, "width" },
     { IconTextFitType::Height, "height" },
+});
+
+MBGL_DEFINE_ENUM(LightAnchorType, {
+    { LightAnchorType::Map, "map" },
+    { LightAnchorType::Viewport, "viewport" }
 });
 
 } // namespace mbgl

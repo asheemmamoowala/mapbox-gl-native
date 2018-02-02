@@ -1,5 +1,4 @@
 add_definitions(-DMBGL_USE_GLES2=1)
-
 include(cmake/test-files.cmake)
 
 # Build thin archives.
@@ -8,6 +7,9 @@ set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> cruT <TARGET> <LINK_FLAGS> <OBJECTS>")
 set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> ruT <TARGET> <LINK_FLAGS> <OBJECTS>")
 set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> ruT <TARGET> <LINK_FLAGS> <OBJECTS>")
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections -fdata-sections")
+
 if ((ANDROID_ABI STREQUAL "armeabi") OR (ANDROID_ABI STREQUAL "armeabi-v7a") OR (ANDROID_ABI STREQUAL "arm64-v8a") OR
     (ANDROID_ABI STREQUAL "x86") OR (ANDROID_ABI STREQUAL "x86_64"))
     # Use Identical Code Folding on platforms that support the gold linker.
@@ -15,8 +17,10 @@ if ((ANDROID_ABI STREQUAL "armeabi") OR (ANDROID_ABI STREQUAL "armeabi-v7a") OR 
     set(CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=gold -Wl,--icf=safe ${CMAKE_SHARED_LINKER_FLAGS}")
 endif()
 
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections -Wl,--version-script=${CMAKE_SOURCE_DIR}/platform/android/version-script")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections -Wl,--version-script=${CMAKE_SOURCE_DIR}/platform/android/version-script")
+
 mason_use(jni.hpp VERSION 3.0.0 HEADER_ONLY)
-mason_use(libzip VERSION 1.1.3)
 mason_use(nunicode VERSION 1.7.1)
 mason_use(sqlite VERSION 3.14.2)
 mason_use(gtest VERSION 1.8.0)
@@ -32,27 +36,14 @@ macro(mbgl_platform_core)
         PRIVATE platform/android/src/run_loop_impl.hpp
         PRIVATE platform/android/src/timer.cpp
 
-        # File source
-        PRIVATE platform/android/src/http_file_source.cpp
-        PRIVATE platform/android/src/asset_file_source.cpp
-        PRIVATE platform/default/default_file_source.cpp
-        PRIVATE platform/default/local_file_source.cpp
-        PRIVATE platform/default/online_file_source.cpp
-
-        # Offline
-        PRIVATE platform/default/mbgl/storage/offline.cpp
-        PRIVATE platform/default/mbgl/storage/offline_database.cpp
-        PRIVATE platform/default/mbgl/storage/offline_database.hpp
-        PRIVATE platform/default/mbgl/storage/offline_download.cpp
-        PRIVATE platform/default/mbgl/storage/offline_download.hpp
-        PRIVATE platform/default/sqlite3.cpp
-        PRIVATE platform/default/sqlite3.hpp
-
         # Misc
+        PRIVATE platform/android/src/text/local_glyph_rasterizer_jni.hpp
+        PRIVATE platform/android/src/text/local_glyph_rasterizer.cpp
         PRIVATE platform/android/src/logging_android.cpp
         PRIVATE platform/android/src/thread.cpp
         PRIVATE platform/default/string_stdlib.cpp
         PRIVATE platform/default/bidi.cpp
+        PRIVATE platform/default/thread_local.cpp
         PRIVATE platform/default/utf.cpp
 
         # Image handling
@@ -68,25 +59,33 @@ macro(mbgl_platform_core)
         PRIVATE platform/default/mbgl/util/shared_thread_pool.hpp
         PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
         PRIVATE platform/default/mbgl/util/default_thread_pool.hpp
+
+        # Rendering
+        PRIVATE platform/android/src/android_renderer_backend.cpp
+        PRIVATE platform/android/src/android_renderer_backend.hpp
+        PRIVATE platform/android/src/android_renderer_frontend.cpp
+        PRIVATE platform/android/src/android_renderer_frontend.hpp
+
+        # Snapshots (core)
+        PRIVATE platform/default/mbgl/gl/headless_backend.cpp
+        PRIVATE platform/default/mbgl/gl/headless_backend.hpp
+        PRIVATE platform/default/mbgl/gl/headless_frontend.cpp
+        PRIVATE platform/default/mbgl/gl/headless_frontend.hpp
+        PRIVATE platform/default/mbgl/map/map_snapshotter.cpp
+        PRIVATE platform/default/mbgl/map/map_snapshotter.hpp
+        PRIVATE platform/linux/src/headless_backend_egl.cpp
     )
 
     target_include_directories(mbgl-core
         PUBLIC platform/default
+        PRIVATE platform/android
     )
 
-    target_add_mason_package(mbgl-core PUBLIC sqlite)
     target_add_mason_package(mbgl-core PUBLIC nunicode)
-    target_add_mason_package(mbgl-core PUBLIC libzip)
     target_add_mason_package(mbgl-core PUBLIC geojson)
     target_add_mason_package(mbgl-core PUBLIC jni.hpp)
     target_add_mason_package(mbgl-core PUBLIC rapidjson)
     target_add_mason_package(mbgl-core PRIVATE icu)
-
-    target_compile_options(mbgl-core
-        PRIVATE -fvisibility=hidden
-        PRIVATE -ffunction-sections
-        PRIVATE -fdata-sections
-    )
 
     target_link_libraries(mbgl-core
         PUBLIC -llog
@@ -100,6 +99,31 @@ macro(mbgl_platform_core)
     )
 endmacro()
 
+
+macro(mbgl_filesource)
+    target_sources(mbgl-filesource
+        # File source
+        PRIVATE platform/android/src/http_file_source.cpp
+        PRIVATE platform/android/src/asset_manager.hpp
+        PRIVATE platform/android/src/asset_manager_file_source.cpp
+        PRIVATE platform/android/src/asset_manager_file_source.hpp
+
+        # Database
+        PRIVATE platform/default/sqlite3.cpp
+    )
+
+    target_add_mason_package(mbgl-filesource PUBLIC sqlite)
+    target_add_mason_package(mbgl-filesource PUBLIC jni.hpp)
+
+    target_link_libraries(mbgl-filesource
+        PUBLIC -llog
+        PUBLIC -landroid
+        PUBLIC -lstdc++
+        PUBLIC -latomic
+    )
+endmacro()
+
+
 ## Main library ##
 
 add_library(mbgl-android STATIC
@@ -110,10 +134,13 @@ add_library(mbgl-android STATIC
     platform/android/src/style/conversion/property_value.hpp
     platform/android/src/style/conversion/types.hpp
     platform/android/src/style/conversion/types_string_values.hpp
+    platform/android/src/map/camera_position.cpp
+    platform/android/src/map/camera_position.hpp
+    platform/android/src/map/image.cpp
+    platform/android/src/map/image.hpp
 
     # Style conversion Java -> C++
     platform/android/src/style/android_conversion.hpp
-    platform/android/src/style/conversion/geojson.hpp
     platform/android/src/style/value.cpp
     platform/android/src/style/value.hpp
     platform/android/src/style/conversion/url_or_tileset.hpp
@@ -127,8 +154,12 @@ add_library(mbgl-android STATIC
     platform/android/src/style/layers/circle_layer.hpp
     platform/android/src/style/layers/custom_layer.cpp
     platform/android/src/style/layers/custom_layer.hpp
+    platform/android/src/style/layers/fill_extrusion_layer.cpp
+    platform/android/src/style/layers/fill_extrusion_layer.hpp
     platform/android/src/style/layers/fill_layer.cpp
     platform/android/src/style/layers/fill_layer.hpp
+    platform/android/src/style/layers/hillshade_layer.cpp
+    platform/android/src/style/layers/hillshade_layer.hpp
     platform/android/src/style/layers/layer.cpp
     platform/android/src/style/layers/layer.hpp
     platform/android/src/style/layers/layers.cpp
@@ -143,16 +174,20 @@ add_library(mbgl-android STATIC
     platform/android/src/style/layers/unknown_layer.hpp
     platform/android/src/style/sources/geojson_source.cpp
     platform/android/src/style/sources/geojson_source.hpp
+    platform/android/src/style/sources/custom_geometry_source.cpp
+    platform/android/src/style/sources/custom_geometry_source.hpp
     platform/android/src/style/sources/source.cpp
     platform/android/src/style/sources/source.hpp
-    platform/android/src/style/sources/sources.cpp
-    platform/android/src/style/sources/sources.hpp
     platform/android/src/style/sources/raster_source.cpp
     platform/android/src/style/sources/raster_source.hpp
     platform/android/src/style/sources/unknown_source.cpp
     platform/android/src/style/sources/unknown_source.hpp
     platform/android/src/style/sources/vector_source.cpp
     platform/android/src/style/sources/vector_source.hpp
+    platform/android/src/style/sources/image_source.hpp
+    platform/android/src/style/sources/image_source.cpp
+    platform/android/src/style/sources/raster_dem_source.cpp
+    platform/android/src/style/sources/raster_dem_source.hpp
     platform/android/src/style/functions/stop.cpp
     platform/android/src/style/functions/stop.hpp
     platform/android/src/style/functions/categorical_stops.cpp
@@ -163,6 +198,10 @@ add_library(mbgl-android STATIC
     platform/android/src/style/functions/identity_stops.hpp
     platform/android/src/style/functions/interval_stops.cpp
     platform/android/src/style/functions/interval_stops.hpp
+    platform/android/src/style/position.cpp
+    platform/android/src/style/position.hpp
+    platform/android/src/style/light.cpp
+    platform/android/src/style/light.hpp
 
     # FileSource holder
     platform/android/src/file_source.cpp
@@ -175,6 +214,10 @@ add_library(mbgl-android STATIC
     # Native map
     platform/android/src/native_map_view.cpp
     platform/android/src/native_map_view.hpp
+    platform/android/src/map_renderer.cpp
+    platform/android/src/map_renderer.hpp
+    platform/android/src/map_renderer_runnable.cpp
+    platform/android/src/map_renderer_runnable.hpp
 
     # Java core classes
     platform/android/src/java/util.cpp
@@ -213,6 +256,8 @@ add_library(mbgl-android STATIC
     platform/android/src/geometry/lat_lng.hpp
     platform/android/src/geometry/lat_lng_bounds.cpp
     platform/android/src/geometry/lat_lng_bounds.hpp
+    platform/android/src/geometry/lat_lng_quad.cpp
+    platform/android/src/geometry/lat_lng_quad.hpp
     platform/android/src/geometry/projected_meters.cpp
     platform/android/src/geometry/projected_meters.hpp
 
@@ -246,6 +291,12 @@ add_library(mbgl-android STATIC
     platform/android/src/offline/offline_region_status.cpp
     platform/android/src/offline/offline_region_status.hpp
 
+    # Snapshots (SDK)
+    platform/android/src/snapshotter/map_snapshotter.cpp
+    platform/android/src/snapshotter/map_snapshotter.hpp
+    platform/android/src/snapshotter/map_snapshot.cpp
+    platform/android/src/snapshotter/map_snapshot.hpp
+
     # Main jni bindings
     platform/android/src/attach_env.cpp
     platform/android/src/attach_env.hpp
@@ -257,13 +308,8 @@ add_library(mbgl-android STATIC
     platform/android/src/jni.cpp
 )
 
-target_compile_options(mbgl-android
-    PRIVATE -fvisibility=hidden
-    PRIVATE -ffunction-sections
-    PRIVATE -fdata-sections
-)
-
 target_link_libraries(mbgl-android
+    PUBLIC mbgl-filesource
     PUBLIC mbgl-core
 )
 
@@ -275,8 +321,6 @@ add_library(mapbox-gl SHARED
 
 target_link_libraries(mapbox-gl
     PRIVATE mbgl-android
-    PRIVATE -Wl,--gc-sections
-    PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/platform/android/version-script
 )
 
 ## Test library ##
@@ -288,29 +332,14 @@ macro(mbgl_platform_test)
 
         # Main test entry point
         platform/android/src/test/main.jni.cpp
-
-        # Headless view
-        platform/default/mbgl/gl/headless_backend.cpp
-        platform/default/mbgl/gl/headless_backend.hpp
-        platform/default/mbgl/gl/offscreen_view.cpp
-        platform/default/mbgl/gl/offscreen_view.hpp
-
-        platform/linux/src/headless_backend_egl.cpp
-        platform/linux/src/headless_display_egl.cpp
     )
 
-    target_compile_options(mbgl-test
-        PRIVATE -fvisibility=hidden
-    )
-
-    target_compile_definitions(mbgl-test
-        PRIVATE MBGL_ASSET_ZIP=1
+    target_include_directories(mbgl-test
+        PRIVATE platform/android
     )
 
     target_link_libraries(mbgl-test
         PRIVATE mbgl-android
-        PRIVATE -Wl,--gc-sections
-        PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/platform/android/version-script
     )
 endmacro()
 
@@ -320,14 +349,6 @@ add_library(example-custom-layer SHARED
     platform/android/src/example_custom_layer.cpp
 )
 
-target_compile_options(example-custom-layer
-    PRIVATE -fvisibility=hidden
-    PRIVATE -ffunction-sections
-    PRIVATE -fdata-sections
-)
-
 target_link_libraries(example-custom-layer
     PRIVATE mbgl-core
-    PRIVATE -Wl,--gc-sections
-    PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/platform/android/version-script
 )

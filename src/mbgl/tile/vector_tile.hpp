@@ -6,22 +6,18 @@
 namespace mbgl {
 
 class Tileset;
-
-namespace style {
-class UpdateParameters;
-} // namespace style
+class TileParameters;
 
 class VectorTile : public GeometryTile {
 public:
     VectorTile(const OverscaledTileID&,
                std::string sourceID,
-               const style::UpdateParameters&,
+               const TileParameters&,
                const Tileset&);
 
-    void setNecessity(Necessity) final;
-    void setData(std::shared_ptr<const std::string> data,
-                 optional<Timestamp> modified,
-                 optional<Timestamp> expires);
+    void setNecessity(TileNecessity) final;
+    void setMetadata(optional<Timestamp> modified, optional<Timestamp> expires);
+    void setData(std::shared_ptr<const std::string> data);
 
 private:
     TileLoader<VectorTile> loader;

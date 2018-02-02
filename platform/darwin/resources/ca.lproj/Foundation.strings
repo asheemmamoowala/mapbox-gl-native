@@ -1,8 +1,8 @@
-﻿/* Clock position format, long: {hours} o’clock */
-"CLOCK_FMT_LONG" = "%@ en punt";
+/* Clock position format, long: {hours} o’clock */
+"CLOCK_FMT_LONG" = "a les %@";
 
 /* Clock position format, medium: {hours} o’clock */
-"CLOCK_FMT_MEDIUM" = "%@ en punt";
+"CLOCK_FMT_MEDIUM" = "a les %@";
 
 /* Clock position format, short: {hours}:00 */
 "CLOCK_FMT_SHORT" = "%@:00";
@@ -288,4 +288,10 @@
 
 /* West longitude format, short: {longitude} */
 "COORD_W_SHORT" = "%@O";
+
+/* OpenStreetMap full name attribution */
+"OSM_FULL_NAME" = "OpenStreetMap";
+
+/* OpenStreetMap short name attribution */
+"OSM_SHORT_NAME" = "OSM";
 

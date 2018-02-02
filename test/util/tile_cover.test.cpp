@@ -31,12 +31,13 @@ TEST(TileCover, Pitch) {
     Transform transform;
     transform.resize({ 512, 512 });
     // slightly offset center so that tile order is better defined
-    transform.setLatLng({ 0.01, -0.01 });
+    transform.setLatLng({ 0.1, -0.1 });
     transform.setZoom(2);
+    transform.setAngle(5.0);
     transform.setPitch(40.0 * M_PI / 180.0);
 
     EXPECT_EQ((std::vector<UnwrappedTileID>{
-                  { 2, 1, 1 }, { 2, 1, 2 }, { 2, 2, 1 }, { 2, 2, 2 },
+                  { 2, 1, 2 }, { 2, 1, 1 }, { 2, 2, 2 }, { 2, 2, 1 }, { 2, 3, 2 }
               }),
               util::tileCover(transform.getState(), 2));
 }
@@ -83,3 +84,12 @@ TEST(TileCover, SanFranciscoZ0Wrapped) {
     EXPECT_EQ((std::vector<UnwrappedTileID>{ { 0, 1, 0 } }),
               util::tileCover(sanFranciscoWrapped, 0));
 }
+
+TEST(TileCount, SanFranciscoZ10) {
+    EXPECT_EQ(4u, util::tileCount(sanFrancisco, 10, util::tileSize));
+}
+
+TEST(TileCount, SanFranciscoZ22) {
+    EXPECT_EQ(7254450u, util::tileCount(sanFrancisco, 22, util::tileSize));
+}
+

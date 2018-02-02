@@ -6,7 +6,6 @@ import android.support.v7.app.AppCompatActivity;
 
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.storage.FileSource;
 import com.mapbox.mapboxsdk.storage.Resource;
 import com.mapbox.mapboxsdk.testapp.R;
@@ -19,6 +18,7 @@ import timber.log.Timber;
 public class UrlTransformActivity extends AppCompatActivity {
 
   private MapView mapView;
+  private MapboxMap mapboxMap;
 
   /**
    * Be sure to use an isolated class so the activity is not leaked when
@@ -46,11 +46,9 @@ public class UrlTransformActivity extends AppCompatActivity {
     // Get a handle to the file source and set the resource transform
     FileSource.getInstance(UrlTransformActivity.this).setResourceTransform(new Transform());
 
-    mapView.getMapAsync(new OnMapReadyCallback() {
-      @Override
-      public void onMapReady(MapboxMap map) {
-        Timber.i("Map loaded");
-      }
+    mapView.getMapAsync(map -> {
+      Timber.i("Map loaded");
+      mapboxMap = map;
     });
   }
 

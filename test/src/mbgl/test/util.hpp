@@ -4,7 +4,7 @@
 #include <TargetConditionals.h>
 #endif
 
-#if __ANDROID__
+#if ANDROID
 #define TEST_READ_ONLY 0
 #define TEST_HAS_SERVER 0
 #elif TARGET_OS_IOS
@@ -54,11 +54,6 @@
 #include <gtest/gtest.h>
 
 namespace mbgl {
-
-class Map;
-class OffscreenView;
-class HeadlessDisplay;
-
 namespace test {
 
 class Server {
@@ -69,10 +64,6 @@ public:
 private:
     int fd = -1;
 };
-
-std::shared_ptr<HeadlessDisplay> sharedDisplay();
-
-PremultipliedImage render(Map&, OffscreenView&);
 
 void checkImage(const std::string& base,
                 const PremultipliedImage& actual,

@@ -34,7 +34,6 @@ typedef NS_ENUM(NSInteger, MBXSettingsCoreRenderingRows) {
     MBXSettingsCoreRenderingTimestamps,
     MBXSettingsCoreRenderingCollisionBoxes,
     MBXSettingsCoreRenderingOverdrawVisualization,
-    MBXSettingsCoreRenderingToggleTwoMaps,
 };
 
 typedef NS_ENUM(NSInteger, MBXSettingsAnnotationsRows) {
@@ -48,11 +47,13 @@ typedef NS_ENUM(NSInteger, MBXSettingsAnnotationsRows) {
     MBXSettingsAnnotationsTestShapes,
     MBXSettingsAnnotationsCustomCallout,
     MBXSettingsAnnotationsQueryAnnotations,
+    MBXSettingsAnnotationsCustomUserDot,
     MBXSettingsAnnotationsRemoveAnnotations,
 };
 
 typedef NS_ENUM(NSInteger, MBXSettingsRuntimeStylingRows) {
-    MBXSettingsRuntimeStylingWater = 0,
+    MBXSettingsRuntimeStylingBuildingExtrusions = 0,
+    MBXSettingsRuntimeStylingWater,
     MBXSettingsRuntimeStylingRoads,
     MBXSettingsRuntimeStylingRaster,
     MBXSettingsRuntimeStylingShape,
@@ -71,17 +72,20 @@ typedef NS_ENUM(NSInteger, MBXSettingsRuntimeStylingRows) {
     MBXSettingsRuntimeStylingUpdateShapeSourceFeatures,
     MBXSettingsRuntimeStylingVectorSource,
     MBXSettingsRuntimeStylingRasterSource,
-    MBXSettingsRuntimeStylingCountryLabels,
+    MBXSettingsRuntimeStylingImageSource,
     MBXSettingsRuntimeStylingRouteLine,
     MBXSettingsRuntimeStylingDDSPolygon,
+    MBXSettingsRuntimeStylingCustomLatLonGrid,
 };
 
 typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MBXSettingsMiscellaneousShowReuseQueueStats = 0,
     MBXSettingsMiscellaneousWorldTour,
-    MBXSettingsMiscellaneousCustomUserDot,
     MBXSettingsMiscellaneousShowZoomLevel,
     MBXSettingsMiscellaneousScrollView,
+    MBXSettingsMiscellaneousToggleTwoMaps,
+    MBXSettingsMiscellaneousCountryLabels,
+    MBXSettingsMiscellaneousShowSnapshots,
     MBXSettingsMiscellaneousPrintLogFile,
     MBXSettingsMiscellaneousDeleteLogFile,
 };
@@ -108,11 +112,12 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
 @interface MBXViewController () <UITableViewDelegate,
                                  UITableViewDataSource,
-                                 MGLMapViewDelegate>
+                                 MGLMapViewDelegate,
+                                 MGLComputedShapeSourceDataSource>
 
 
 @property (nonatomic) IBOutlet MGLMapView *mapView;
-@property (weak, nonatomic) IBOutlet UILabel *hudLabel;
+@property (weak, nonatomic) IBOutlet UIButton *hudLabel;
 @property (nonatomic) NSInteger styleIndex;
 @property (nonatomic) BOOL debugLoggingEnabled;
 @property (nonatomic) BOOL customUserLocationAnnnotationEnabled;
@@ -160,7 +165,11 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
     self.debugLoggingEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MGLMapboxMetricsDebugLoggingEnabled"];
     self.mapView.scaleBar.hidden = NO;
+    self.mapView.showsUserHeadingIndicator = YES;
     self.hudLabel.hidden = YES;
+    if ([UIFont respondsToSelector:@selector(monospacedDigitSystemFontOfSize:weight:)]) {
+        self.hudLabel.titleLabel.font = [UIFont monospacedDigitSystemFontOfSize:10 weight:UIFontWeightRegular];
+    }
 
     if ([MGLAccountManager accessToken].length)
     {
@@ -303,8 +312,6 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                     (debugMask & MGLMapDebugCollisionBoxesMask ? @"Hide" :@"Show")],
                 [NSString stringWithFormat:@"%@ Overdraw Visualization",
                     (debugMask & MGLMapDebugOverdrawVisualizationMask ? @"Hide" :@"Show")],
-                [NSString stringWithFormat:@"%@ Second Map",
-                    ([self.view viewWithTag:2] == nil ? @"Show" : @"Hide")],
             ]];
             break;
         case MBXSettingsAnnotations:
@@ -319,11 +326,13 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 @"Add Test Shapes",
                 @"Add Point With Custom Callout",
                 @"Query Annotations",
+                [NSString stringWithFormat:@"%@ Custom User Dot", (_customUserLocationAnnnotationEnabled ? @"Disable" : @"Enable")],
                 @"Remove Annotations",
             ]];
             break;
         case MBXSettingsRuntimeStyling:
             [settingsTitles addObjectsFromArray:@[
+                @"Add Building Extrusions",
                 @"Style Water With Function",
                 @"Style Roads With Function",
                 @"Add Raster & Apply Function",
@@ -343,18 +352,21 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 @"Update Shape Source: Features",
                 @"Style Vector Source",
                 @"Style Raster Source",
-                [NSString stringWithFormat:@"Label Countries in %@", (_usingLocaleBasedCountryLabels ? @"Local Language" : [[NSLocale currentLocale] displayNameForKey:NSLocaleIdentifier value:[self bestLanguageForUser]])],
+                @"Style Image Source",
                 @"Add Route Line",
                 @"Dynamically Style Polygon",
+                @"Add Custom Lat/Lon Grid",
             ]];
             break;
         case MBXSettingsMiscellaneous:
             [settingsTitles addObjectsFromArray:@[
                 [NSString stringWithFormat:@"%@ Reuse Queue Stats", (_reuseQueueStatsEnabled ? @"Hide" :@"Show")],
                 @"Start World Tour",
-                [NSString stringWithFormat:@"%@ Custom User Dot", (_customUserLocationAnnnotationEnabled ? @"Disable" : @"Enable")],
-                [NSString stringWithFormat:@"%@ Zoom Level", (_showZoomLevelEnabled ? @"Hide" :@"Show")],
+                [NSString stringWithFormat:@"%@ Zoom/Pitch/Direction Label", (_showZoomLevelEnabled ? @"Hide" :@"Show")],
                 @"Embedded Map View",
+                [NSString stringWithFormat:@"%@ Second Map", ([self.view viewWithTag:2] == nil ? @"Show" : @"Hide")],
+                [NSString stringWithFormat:@"Show Labels in %@", (_usingLocaleBasedCountryLabels ? @"Default Language" : [[NSLocale currentLocale] displayNameForKey:NSLocaleIdentifier value:[self bestLanguageForUser]])],
+                @"Show Snapshots"
             ]];
 
             if (self.debugLoggingEnabled)
@@ -399,7 +411,174 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 case MBXSettingsCoreRenderingOverdrawVisualization:
                     self.mapView.debugMask ^= MGLMapDebugOverdrawVisualizationMask;
                     break;
-                case MBXSettingsCoreRenderingToggleTwoMaps:
+                default:
+                    NSAssert(NO, @"All core rendering setting rows should be implemented");
+                    break;
+            }
+            break;
+        case MBXSettingsAnnotations:
+            switch (indexPath.row)
+            {
+                case MBXSettingsAnnotations100Views:
+                    [self parseFeaturesAddingCount:100 usingViews:YES];
+                    break;
+                case MBXSettingsAnnotations1000Views:
+                    [self parseFeaturesAddingCount:1000 usingViews:YES];
+                    break;
+                case MBXSettingsAnnotations10000Views:
+                    [self parseFeaturesAddingCount:10000 usingViews:YES];
+                    break;
+                case MBXSettingsAnnotations100Sprites:
+                    [self parseFeaturesAddingCount:100 usingViews:NO];
+                    break;
+                case MBXSettingsAnnotations1000Sprites:
+                    [self parseFeaturesAddingCount:1000 usingViews:NO];
+                    break;
+                case MBXSettingsAnnotations10000Sprites:
+                    [self parseFeaturesAddingCount:10000 usingViews:NO];
+                    break;
+                case MBXSettingsAnnotationAnimation:
+                    [self animateAnnotationView];
+                    break;
+                case MBXSettingsAnnotationsTestShapes:
+                    [self addTestShapes];
+                    break;
+                case MBXSettingsAnnotationsCustomCallout:
+                    [self addAnnotationWithCustomCallout];
+                    break;
+                case MBXSettingsAnnotationsQueryAnnotations:
+                    [self testQueryPointAnnotations];
+                    break;
+                case MBXSettingsAnnotationsCustomUserDot:
+                    [self toggleCustomUserDot];
+                    break;
+                case MBXSettingsAnnotationsRemoveAnnotations:
+                    [self.mapView removeAnnotations:self.mapView.annotations];
+                    break;
+                default:
+                    NSAssert(NO, @"All annotations setting rows should be implemented");
+                    break;
+            }
+            break;
+        case MBXSettingsRuntimeStyling:
+            switch (indexPath.row)
+            {
+                case MBXSettingsRuntimeStylingBuildingExtrusions:
+                    [self styleBuildingExtrusions];
+                    break;
+                case MBXSettingsRuntimeStylingWater:
+                    [self styleWaterLayer];
+                    break;
+                case MBXSettingsRuntimeStylingRoads:
+                    [self styleRoadLayer];
+                    break;
+                case MBXSettingsRuntimeStylingRaster:
+                    [self styleRasterLayer];
+                    break;
+                case MBXSettingsRuntimeStylingShape:
+                    [self styleShapeSource];
+                    break;
+                case MBXSettingsRuntimeStylingSymbols:
+                    [self styleSymbolLayer];
+                    break;
+                case MBXSettingsRuntimeStylingBuildings:
+                    [self styleBuildingLayer];
+                    break;
+                case MBXSettingsRuntimeStylingFerry:
+                    [self styleFerryLayer];
+                    break;
+                case MBXSettingsRuntimeStylingParks:
+                    [self removeParkLayer];
+                    break;
+                case MBXSettingsRuntimeStylingFilteredFill:
+                    [self styleFilteredFill];
+                    break;
+                case MBXSettingsRuntimeStylingFilteredLines:
+                    [self styleFilteredLines];
+                    break;
+                case MBXSettingsRuntimeStylingNumericFilteredFill:
+                    [self styleNumericFilteredFills];
+                    break;
+                case MBXSettingsRuntimeStylingStyleQuery:
+                    [self styleQuery];
+                    break;
+                case MBXSettingsRuntimeStylingFeatureSource:
+                    [self styleFeature];
+                    break;
+                case MBXSettingsRuntimeStylingPointCollection:
+                    [self styleDynamicPointCollection];
+                    break;
+                case MBXSettingsRuntimeStylingUpdateShapeSourceURL:
+                    [self updateShapeSourceURL];
+                    break;
+                case MBXSettingsRuntimeStylingUpdateShapeSourceData:
+                    [self updateShapeSourceData];
+                    break;
+                case MBXSettingsRuntimeStylingUpdateShapeSourceFeatures:
+                    [self updateShapeSourceFeatures];
+                    break;
+                case MBXSettingsRuntimeStylingVectorSource:
+                    [self styleVectorSource];
+                    break;
+                case MBXSettingsRuntimeStylingRasterSource:
+                    [self styleRasterSource];
+                    break;
+                case MBXSettingsRuntimeStylingImageSource:
+                    [self styleImageSource];
+                    break;
+                case MBXSettingsRuntimeStylingRouteLine:
+                    [self styleRouteLine];
+                    break;
+                case MBXSettingsRuntimeStylingDDSPolygon:
+                    [self stylePolygonWithDDS];
+                    break;
+                case MBXSettingsRuntimeStylingCustomLatLonGrid:
+                    [self addLatLonGrid];
+                    break;
+                default:
+                    NSAssert(NO, @"All runtime styling setting rows should be implemented");
+                    break;
+            }
+            break;
+        case MBXSettingsMiscellaneous:
+            switch (indexPath.row)
+            {
+                case MBXSettingsMiscellaneousCountryLabels:
+                    [self styleCountryLabelsLanguage];
+                    break;
+                case MBXSettingsMiscellaneousWorldTour:
+                    [self startWorldTour];
+                    break;
+                case MBXSettingsMiscellaneousPrintLogFile:
+                    [self printTelemetryLogFile];
+                    break;
+                case MBXSettingsMiscellaneousDeleteLogFile:
+                    [self deleteTelemetryLogFile];
+                    break;
+                case MBXSettingsMiscellaneousShowReuseQueueStats:
+                {
+                    self.reuseQueueStatsEnabled = !self.reuseQueueStatsEnabled;
+                    self.hudLabel.hidden = !self.reuseQueueStatsEnabled;
+                    self.showZoomLevelEnabled = NO;
+                    [self updateHUD];
+                    break;
+                }
+                case MBXSettingsMiscellaneousShowZoomLevel:
+                {
+                    self.showZoomLevelEnabled = !self.showZoomLevelEnabled;
+                    self.hudLabel.hidden = !self.showZoomLevelEnabled;
+                    self.reuseQueueStatsEnabled = NO;
+                    [self updateHUD];
+                    break;
+                }
+                case MBXSettingsMiscellaneousScrollView:
+                {
+                    UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
+                    MBXEmbeddedMapViewController *embeddedMapViewController = (MBXEmbeddedMapViewController *)[storyboard instantiateViewControllerWithIdentifier:@"MBXEmbeddedMapViewController"];
+                    [self.navigationController pushViewController:embeddedMapViewController animated:YES];
+                    break;
+                }
+                case MBXSettingsMiscellaneousToggleTwoMaps:
                     if ([self.view viewWithTag:2] == nil) {
                         MGLMapView *secondMapView = [[MGLMapView alloc] initWithFrame:
                                                         CGRectMake(0, self.view.bounds.size.height / 2,
@@ -474,160 +653,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                                                                                constant:0]];
                     }
                     break;
-                default:
-                    NSAssert(NO, @"All core rendering setting rows should be implemented");
-                    break;
-            }
-            break;
-        case MBXSettingsAnnotations:
-            switch (indexPath.row)
-            {
-                case MBXSettingsAnnotations100Views:
-                    [self parseFeaturesAddingCount:100 usingViews:YES];
-                    break;
-                case MBXSettingsAnnotations1000Views:
-                    [self parseFeaturesAddingCount:1000 usingViews:YES];
-                    break;
-                case MBXSettingsAnnotations10000Views:
-                    [self parseFeaturesAddingCount:10000 usingViews:YES];
-                    break;
-                case MBXSettingsAnnotations100Sprites:
-                    [self parseFeaturesAddingCount:100 usingViews:NO];
-                    break;
-                case MBXSettingsAnnotations1000Sprites:
-                    [self parseFeaturesAddingCount:1000 usingViews:NO];
-                    break;
-                case MBXSettingsAnnotations10000Sprites:
-                    [self parseFeaturesAddingCount:10000 usingViews:NO];
-                    break;
-                case MBXSettingsAnnotationAnimation:
-                    [self animateAnnotationView];
-                    break;
-                case MBXSettingsAnnotationsTestShapes:
-                    [self addTestShapes];
-                    break;
-                case MBXSettingsAnnotationsCustomCallout:
-                    [self addAnnotationWithCustomCallout];
-                    break;
-                case MBXSettingsAnnotationsQueryAnnotations:
-                    [self testQueryPointAnnotations];
-                    break;
-                case MBXSettingsAnnotationsRemoveAnnotations:
-                    [self.mapView removeAnnotations:self.mapView.annotations];
-                    break;
-                default:
-                    NSAssert(NO, @"All annotations setting rows should be implemented");
-                    break;
-            }
-            break;
-        case MBXSettingsRuntimeStyling:
-            switch (indexPath.row)
-            {
-                case MBXSettingsRuntimeStylingWater:
-                    [self styleWaterLayer];
-                    break;
-                case MBXSettingsRuntimeStylingRoads:
-                    [self styleRoadLayer];
-                    break;
-                case MBXSettingsRuntimeStylingRaster:
-                    [self styleRasterLayer];
-                    break;
-                case MBXSettingsRuntimeStylingShape:
-                    [self styleShapeSource];
-                    break;
-                case MBXSettingsRuntimeStylingSymbols:
-                    [self styleSymbolLayer];
-                    break;
-                case MBXSettingsRuntimeStylingBuildings:
-                    [self styleBuildingLayer];
-                    break;
-                case MBXSettingsRuntimeStylingFerry:
-                    [self styleFerryLayer];
-                    break;
-                case MBXSettingsRuntimeStylingParks:
-                    [self removeParkLayer];
-                    break;
-                case MBXSettingsRuntimeStylingFilteredFill:
-                    [self styleFilteredFill];
-                    break;
-                case MBXSettingsRuntimeStylingFilteredLines:
-                    [self styleFilteredLines];
-                    break;
-                case MBXSettingsRuntimeStylingNumericFilteredFill:
-                    [self styleNumericFilteredFills];
-                    break;
-                case MBXSettingsRuntimeStylingStyleQuery:
-                    [self styleQuery];
-                    break;
-                case MBXSettingsRuntimeStylingFeatureSource:
-                    [self styleFeature];
-                    break;
-                case MBXSettingsRuntimeStylingPointCollection:
-                    [self styleDynamicPointCollection];
-                    break;
-                case MBXSettingsRuntimeStylingUpdateShapeSourceURL:
-                    [self updateShapeSourceURL];
-                    break;
-                case MBXSettingsRuntimeStylingUpdateShapeSourceData:
-                    [self updateShapeSourceData];
-                    break;
-                case MBXSettingsRuntimeStylingUpdateShapeSourceFeatures:
-                    [self updateShapeSourceFeatures];
-                    break;
-                case MBXSettingsRuntimeStylingVectorSource:
-                    [self styleVectorSource];
-                    break;
-                case MBXSettingsRuntimeStylingRasterSource:
-                    [self styleRasterSource];
-                    break;
-                case MBXSettingsRuntimeStylingCountryLabels:
-                    [self styleCountryLabelsLanguage];
-                    break;
-                case MBXSettingsRuntimeStylingRouteLine:
-                    [self styleRouteLine];
-                    break;
-                case MBXSettingsRuntimeStylingDDSPolygon:
-                    [self stylePolygonWithDDS];
-                    break;
-                default:
-                    NSAssert(NO, @"All runtime styling setting rows should be implemented");
-                    break;
-            }
-            break;
-        case MBXSettingsMiscellaneous:
-            switch (indexPath.row)
-            {
-                case MBXSettingsMiscellaneousWorldTour:
-                    [self startWorldTour];
-                    break;
-                case MBXSettingsMiscellaneousCustomUserDot:
-                    [self toggleCustomUserDot];
-                    break;
-                case MBXSettingsMiscellaneousPrintLogFile:
-                    [self printTelemetryLogFile];
-                    break;
-                case MBXSettingsMiscellaneousDeleteLogFile:
-                    [self deleteTelemetryLogFile];
-                    break;
-                case MBXSettingsMiscellaneousShowReuseQueueStats:
+                case MBXSettingsMiscellaneousShowSnapshots:
                 {
-                    self.reuseQueueStatsEnabled = !self.reuseQueueStatsEnabled;
-                    self.hudLabel.hidden = !self.reuseQueueStatsEnabled;
-                    self.showZoomLevelEnabled = NO;
-                    break;
-                }
-                case MBXSettingsMiscellaneousShowZoomLevel:
-                {
-                    self.showZoomLevelEnabled = !self.showZoomLevelEnabled;
-                    self.hudLabel.hidden = !self.showZoomLevelEnabled;
-                    self.reuseQueueStatsEnabled = NO;
-                    break;
-                }
-                case MBXSettingsMiscellaneousScrollView:
-                {
-                    UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
-                    MBXEmbeddedMapViewController *embeddedMapViewController = (MBXEmbeddedMapViewController *)[storyboard instantiateViewControllerWithIdentifier:@"MBXEmbeddedMapViewController"];
-                    [self.navigationController pushViewController:embeddedMapViewController animated:YES];
+                    [self performSegueWithIdentifier:@"ShowSnapshots" sender:nil];
                     break;
                 }
                 default:
@@ -807,6 +835,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         }
 
         MGLPolygon *polygon = [MGLPolygon polygonWithCoordinates:polygonCoordinates count:[stateCoordinatePairs count]];
+        polygon.title = feature[@"properties"][@"NAME"];
 
         [self.mapView addAnnotation:polygon];
 
@@ -860,51 +889,80 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView showAnnotations:annotations animated:YES];
 }
 
+- (void)styleBuildingExtrusions
+{
+    MGLSource* source = [self.mapView.style sourceWithIdentifier:@"composite"];
+    if (source) {
+
+        MGLFillExtrusionStyleLayer* layer = [[MGLFillExtrusionStyleLayer alloc] initWithIdentifier:@"extrudedBuildings" source:source];
+        layer.sourceLayerIdentifier = @"building";
+        layer.predicate = [NSPredicate predicateWithFormat:@"extrude == 'true' AND height > 0"];
+        layer.fillExtrusionBase = [NSExpression expressionForKeyPath:@"min_height"];
+        layer.fillExtrusionHeight = [NSExpression expressionForKeyPath:@"height"];
+
+        // Set the fill color to that of the existing building footprint layer, if it exists.
+        MGLFillStyleLayer* buildingLayer = (MGLFillStyleLayer*)[self.mapView.style layerWithIdentifier:@"building"];
+        if (buildingLayer) {
+            if (buildingLayer.fillColor) {
+                layer.fillExtrusionColor = buildingLayer.fillColor;
+            } else {
+                layer.fillExtrusionColor = [NSExpression expressionForConstantValue:[UIColor whiteColor]];
+            }
+
+            layer.fillExtrusionOpacity = [NSExpression expressionForConstantValue:@0.75];
+        }
+
+        MGLStyleLayer* labelLayer = [self.mapView.style layerWithIdentifier:@"waterway-label"];
+        if (labelLayer) {
+            [self.mapView.style insertLayer:layer belowLayer:labelLayer];
+        } else {
+            [self.mapView.style addLayer:layer];
+        }
+    }
+}
+
 - (void)styleWaterLayer
 {
     MGLFillStyleLayer *waterLayer = (MGLFillStyleLayer *)[self.mapView.style layerWithIdentifier:@"water"];
-    NSDictionary *waterColorStops = @{@6.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor yellowColor]],
-                                      @8.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blueColor]],
-                                      @10.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]],
-                                      @12.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor greenColor]],
-                                      @14.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blueColor]]};
-    MGLStyleValue *waterColorFunction = [MGLStyleValue<UIColor *> valueWithInterpolationMode:MGLInterpolationModeExponential
-                                                                                 cameraStops:waterColorStops
-                                                                                     options: nil];
-    waterLayer.fillColor = waterColorFunction;
+    NSDictionary *waterColorStops = @{@6.0f: [UIColor yellowColor],
+                                      @8.0f: [UIColor blueColor],
+                                      @10.0f: [UIColor redColor],
+                                      @12.0f: [UIColor greenColor],
+                                      @14.0f: [UIColor blueColor]};
+    waterLayer.fillColor = [NSExpression expressionWithFormat:
+                            @"FUNCTION($zoomLevel, 'mgl_interpolateWithCurveType:parameters:stops:', 'linear', nil, %@)",
+                            waterColorStops];
 
-    NSDictionary *fillAntialiasedStops = @{@11: [MGLStyleValue<NSNumber *> valueWithRawValue:@YES],
-                                           @12: [MGLStyleValue<NSNumber *> valueWithRawValue:@NO],
-                                           @13: [MGLStyleValue<NSNumber *> valueWithRawValue:@YES],
-                                           @14: [MGLStyleValue<NSNumber *> valueWithRawValue:@NO],
-                                           @15: [MGLStyleValue<NSNumber *> valueWithRawValue:@YES]};
-    MGLStyleValue *fillAntialiasedFunction = [MGLStyleValue<NSNumber *> valueWithInterpolationMode:MGLInterpolationModeInterval
-                                                                                       cameraStops:fillAntialiasedStops
-                                                                                           options:nil];
-    waterLayer.fillAntialiased = fillAntialiasedFunction;
+    NSDictionary *fillAntialiasedStops = @{@11: @YES,
+                                           @12: @NO,
+                                           @13: @YES,
+                                           @14: @NO,
+                                           @15: @YES};
+    waterLayer.fillAntialiased = [NSExpression expressionWithFormat:
+                                  @"FUNCTION($zoomLevel, 'mgl_stepWithMinimum:stops:', false, %@)",
+                                  fillAntialiasedStops];
 }
 
 - (void)styleRoadLayer
 {
     MGLLineStyleLayer *roadLayer = (MGLLineStyleLayer *)[self.mapView.style layerWithIdentifier:@"road-primary"];
-    roadLayer.lineColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blackColor]];
+    roadLayer.lineColor = [NSExpression expressionForConstantValue:[UIColor blackColor]];
 
-    NSDictionary *lineWidthStops = @{@5: [MGLStyleValue<NSNumber *> valueWithRawValue:@5],
-                                     @10: [MGLStyleValue<NSNumber *> valueWithRawValue:@15],
-                                     @15: [MGLStyleValue<NSNumber *> valueWithRawValue:@30]};
-    MGLStyleValue *lineWidthFunction = [MGLStyleValue<NSNumber *> valueWithInterpolationMode:MGLInterpolationModeExponential
-                                                                                 cameraStops:lineWidthStops
-                                                                                     options:nil];
-    roadLayer.lineWidth = lineWidthFunction;
-    roadLayer.lineGapWidth = lineWidthFunction;
+    NSDictionary *lineWidthStops = @{@5: @5,
+                                     @10: @15,
+                                     @15: @30};
+    NSExpression *lineWidthExpression = [NSExpression expressionWithFormat:
+                                         @"FUNCTION($zoomLevel, 'mgl_interpolateWithCurveType:parameters:stops:', 'linear', nil, %@)",
+                                         lineWidthStops];
+    roadLayer.lineWidth = lineWidthExpression;
+    roadLayer.lineGapWidth = lineWidthExpression;
 
-    NSDictionary *roadLineColorStops = @{@10: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor purpleColor]],
-                                         @13: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor yellowColor]],
-                                         @16: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor cyanColor]]};
-    MGLStyleValue *roadLineColor = [MGLStyleValue<UIColor *> valueWithInterpolationMode:MGLInterpolationModeExponential
-                                                                            cameraStops:roadLineColorStops
-                                                                                options: nil];
-    roadLayer.lineColor = roadLineColor;
+    NSDictionary *roadLineColorStops = @{@10: [UIColor purpleColor],
+                                         @13: [UIColor yellowColor],
+                                         @16: [UIColor cyanColor]};
+    roadLayer.lineColor = [NSExpression expressionWithFormat:
+                           @"FUNCTION($zoomLevel, 'mgl_interpolateWithCurveType:parameters:stops:', 'linear', nil, %@)",
+                           roadLineColorStops];
 
     roadLayer.visible = YES;
     roadLayer.maximumZoomLevel = 15;
@@ -918,11 +976,11 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addSource:rasterSource];
 
     MGLRasterStyleLayer *rasterLayer = [[MGLRasterStyleLayer alloc] initWithIdentifier:@"my-raster-layer" source:rasterSource];
-    MGLStyleValue *opacityFunction = [MGLStyleValue<NSNumber *> valueWithInterpolationMode:MGLInterpolationModeExponential
-                                                                               cameraStops:@{@20.0f: [MGLStyleValue<NSNumber *> valueWithRawValue:@1.0f],
-                                                                                             @5.0f: [MGLStyleValue<NSNumber *> valueWithRawValue:@0.0f]}
-                                                                                   options:nil];
-    rasterLayer.rasterOpacity = opacityFunction;
+    NSDictionary *opacityStops = @{@20.0f: @1.0f,
+                                   @5.0f: @0.0f};
+    rasterLayer.rasterOpacity = [NSExpression expressionWithFormat:
+                                 @"FUNCTION($zoomLevel, 'mgl_interpolateWithCurveType:parameters:stops:', 'linear', nil, %@)",
+                                 opacityStops];
     [self.mapView.style addLayer:rasterLayer];
 }
 
@@ -934,7 +992,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addSource:source];
 
     MGLFillStyleLayer *fillLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:@"test" source:source];
-    fillLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor purpleColor]];
+    fillLayer.fillColor = [NSExpression expressionForConstantValue:[UIColor purpleColor]];
     [self.mapView.style addLayer:fillLayer];
 
 }
@@ -942,7 +1000,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 - (void)styleSymbolLayer
 {
     MGLSymbolStyleLayer *stateLayer = (MGLSymbolStyleLayer *)[self.mapView.style layerWithIdentifier:@"state-label-lg"];
-    stateLayer.textColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
+    stateLayer.textColor = [NSExpression expressionForConstantValue:[UIColor redColor]];
 }
 
 - (void)styleBuildingLayer
@@ -950,13 +1008,13 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MGLTransition transition =  { 5,  1 };
     self.mapView.style.transition = transition;
     MGLFillStyleLayer *buildingLayer = (MGLFillStyleLayer *)[self.mapView.style layerWithIdentifier:@"building"];
-    buildingLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor purpleColor]];
+    buildingLayer.fillColor = [NSExpression expressionForConstantValue:[UIColor purpleColor]];
 }
 
 - (void)styleFerryLayer
 {
     MGLLineStyleLayer *ferryLineLayer = (MGLLineStyleLayer *)[self.mapView.style layerWithIdentifier:@"ferry"];
-    ferryLineLayer.lineColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
+    ferryLineLayer.lineColor = [NSExpression expressionForConstantValue:[UIColor redColor]];
 }
 
 - (void)removeParkLayer
@@ -980,8 +1038,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         statesLayer.predicate = [NSPredicate predicateWithFormat:@"name == 'Texas'"];
 
         // paint properties
-        statesLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
-        statesLayer.fillOpacity = [MGLStyleValue<NSNumber *> valueWithRawValue:@0.25];
+        statesLayer.fillColor = [NSExpression expressionForConstantValue:[UIColor redColor]];
+        statesLayer.fillOpacity = [NSExpression expressionForConstantValue:@0.25];
     });
 }
 
@@ -1000,9 +1058,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         countiesLayer.predicate = [NSPredicate predicateWithFormat:@"NAME10 == 'Washington'"];
 
         // paint properties
-        countiesLayer.lineColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
-        countiesLayer.lineOpacity = [MGLStyleValue<NSNumber *> valueWithRawValue:@0.75];
-        countiesLayer.lineWidth = [MGLStyleValue<NSNumber *> valueWithRawValue:@5];
+        countiesLayer.lineColor = [NSExpression expressionForConstantValue:[UIColor redColor]];
+        countiesLayer.lineOpacity = [NSExpression expressionForConstantValue:@0.75];
+        countiesLayer.lineWidth = [NSExpression expressionForConstantValue:@5];
     });
 }
 
@@ -1021,8 +1079,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         regionsLayer.predicate = [NSPredicate predicateWithFormat:@"HRRNUM >= %@ AND HRRNUM < 300", @(200)];
 
         // paint properties
-        regionsLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blueColor]];
-        regionsLayer.fillOpacity = [MGLStyleValue<NSNumber *> valueWithRawValue:@0.5];
+        regionsLayer.fillColor = [NSExpression expressionForConstantValue:[UIColor blueColor]];
+        regionsLayer.fillOpacity = [NSExpression expressionForConstantValue:@0.5];
     });
 }
 
@@ -1052,8 +1110,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         [self.mapView.style addSource:source];
 
         MGLFillStyleLayer *fillLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:queryLayerID source:source];
-        fillLayer.fillColor = [MGLConstantStyleValue<UIColor *> valueWithRawValue:[UIColor blueColor]];
-        fillLayer.fillOpacity = [MGLConstantStyleValue<NSNumber *> valueWithRawValue:@0.5];
+        fillLayer.fillColor = [NSExpression expressionForConstantValue:[UIColor blueColor]];
+        fillLayer.fillOpacity = [NSExpression expressionForConstantValue:@0.5];
         [self.mapView.style addLayer:fillLayer];
     });
 }
@@ -1106,8 +1164,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
     MGLFillStyleLayer *layer = [[MGLFillStyleLayer alloc] initWithIdentifier:@"leaf-fill-layer" source:source];
     layer.predicate = [NSPredicate predicateWithFormat:@"color = 'red'"];
-    MGLStyleValue *fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
-    layer.fillColor = fillColor;
+    layer.fillColor = [NSExpression expressionForConstantValue:[UIColor redColor]];
     [self.mapView.style addLayer:layer];
 
     NSString *geoJSON = @"{\"type\": \"Feature\", \"properties\": {\"color\": \"green\"}, \"geometry\": { \"type\": \"Point\", \"coordinates\": [ -114.06847000122069, 51.050459433092655 ] }}";
@@ -1118,7 +1175,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addSource:pointSource];
 
     MGLCircleStyleLayer *circleLayer = [[MGLCircleStyleLayer alloc] initWithIdentifier:@"leaf-circle-layer" source:pointSource];
-    circleLayer.circleColor = [MGLStyleValue valueWithRawValue:[UIColor greenColor]];
+    circleLayer.circleColor = [NSExpression expressionForConstantValue:[UIColor greenColor]];
     circleLayer.predicate = [NSPredicate predicateWithFormat:@"color = 'green'"];
     [self.mapView.style addLayer:circleLayer];
 
@@ -1135,7 +1192,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addSource:plainShapeSource];
 
     MGLFillStyleLayer *plainFillLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:@"leaf-plain-fill-layer" source:plainShapeSource];
-    plainFillLayer.fillColor = [MGLStyleValue valueWithRawValue:[UIColor yellowColor]];
+    plainFillLayer.fillColor = [NSExpression expressionForConstantValue:[UIColor yellowColor]];
     [self.mapView.style addLayer:plainFillLayer];
 }
 
@@ -1212,8 +1269,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addSource:source];
 
     MGLFillStyleLayer *layer = [[MGLFillStyleLayer alloc] initWithIdentifier:@"mutable-data-layer-features-id" source:source];
-    MGLStyleValue *fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
-    layer.fillColor = fillColor;
+    layer.fillColor = [NSExpression expressionForConstantValue:[UIColor redColor]];
     [self.mapView.style addLayer:layer];
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -1245,25 +1301,22 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addSource:vectorSource];
 
     MGLBackgroundStyleLayer *backgroundLayer = [[MGLBackgroundStyleLayer alloc] initWithIdentifier:@"style-vector-background-layer-id"];
-    backgroundLayer.backgroundColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blackColor]];
+    backgroundLayer.backgroundColor = [NSExpression expressionForConstantValue:[UIColor blackColor]];
     [self.mapView.style addLayer:backgroundLayer];
 
     MGLLineStyleLayer *lineLayer = [[MGLLineStyleLayer alloc] initWithIdentifier:@"style-vector-line-layer-id" source:vectorSource];
     lineLayer.sourceLayerIdentifier = @"contour";
-    NSUInteger lineJoinValue = MGLLineJoinRound;
-    lineLayer.lineJoin = [MGLStyleValue<NSValue *> valueWithRawValue:[NSValue value:&lineJoinValue withObjCType:@encode(MGLLineJoin)]];
-    NSUInteger lineCapValue = MGLLineCapRound;
-    lineLayer.lineCap = [MGLStyleValue<NSValue *> valueWithRawValue:[NSValue value:&lineCapValue withObjCType:@encode(MGLLineCap)]];
-    lineLayer.lineColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor greenColor]];
+    lineLayer.lineJoin = [NSExpression expressionForConstantValue:@"round"];
+    lineLayer.lineCap = [NSExpression expressionForConstantValue:@"round"];
+    lineLayer.lineColor = [NSExpression expressionForConstantValue:[UIColor greenColor]];
 
     [self.mapView.style addLayer:lineLayer];
 }
 
 - (void)styleRasterSource
 {
-    // 3rd party raster source requires NSAppTransportSecurity exception for stamen.com
-    NSArray *tileURLTemplates = @[@"http://a.tile.stamen.com/terrain-background/{z}/{x}/{y}.jpg"];
-    MGLRasterSource *rasterSource = [[MGLRasterSource alloc] initWithIdentifier:@"style-raster-source-id" tileURLTemplates:tileURLTemplates options:@{
+    NSString *tileURL = [NSString stringWithFormat:@"https://stamen-tiles.a.ssl.fastly.net/terrain-background/{z}/{x}/{y}%@.jpg", UIScreen.mainScreen.nativeScale > 1 ? @"@2x" : @""];
+    MGLRasterSource *rasterSource = [[MGLRasterSource alloc] initWithIdentifier:@"style-raster-source-id" tileURLTemplates:@[tileURL] options:@{
         MGLTileSourceOptionTileSize: @256,
     }];
     [self.mapView.style addSource:rasterSource];
@@ -1272,14 +1325,43 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addLayer:rasterLayer];
 }
 
+- (void)styleImageSource
+{
+    MGLCoordinateQuad coordinateQuad = {
+        { 46.437, -80.425 },
+        { 37.936, -80.425 },
+        { 37.936, -71.516 },
+        { 46.437, -71.516 } };
+
+    MGLImageSource *imageSource = [[MGLImageSource alloc] initWithIdentifier:@"style-image-source-id" coordinateQuad:coordinateQuad URL:[NSURL URLWithString:@"https://www.mapbox.com/mapbox-gl-js/assets/radar0.gif"]];
+
+    [self.mapView.style addSource:imageSource];
+    
+    MGLRasterStyleLayer *rasterLayer = [[MGLRasterStyleLayer alloc] initWithIdentifier:@"style-raster-image-layer-id" source:imageSource];
+    [self.mapView.style addLayer:rasterLayer];
+    
+    [NSTimer scheduledTimerWithTimeInterval:1.0
+                                     target:self
+                                   selector:@selector(updateAnimatedImageSource:)
+                                   userInfo:imageSource
+                                    repeats:YES];
+}
+
+
+- (void)updateAnimatedImageSource:(NSTimer *)timer {
+    static int radarSuffix = 0;
+    MGLImageSource *imageSource = (MGLImageSource *)timer.userInfo;
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"https://www.mapbox.com/mapbox-gl-js/assets/radar%d.gif", radarSuffix++]];
+    [imageSource setValue:url forKey:@"URL"];
+    if (radarSuffix > 3) {
+        radarSuffix = 0;
+    }
+}
+
 -(void)styleCountryLabelsLanguage
 {
-    NSArray<NSString *> *labelLayers = @[
-        @"country-label-lg",
-        @"country-label-md",
-        @"country-label-sm",
-    ];
-    [self styleLabelLanguageForLayersNamed:labelLayers];
+    _usingLocaleBasedCountryLabels = !_usingLocaleBasedCountryLabels;
+    self.mapView.style.localizesLabels = _usingLocaleBasedCountryLabels;
 }
 
 - (void)styleRouteLine
@@ -1304,19 +1386,19 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [self.mapView.style addSource:routeSource];
 
     MGLLineStyleLayer *baseRouteLayer = [[MGLLineStyleLayer alloc] initWithIdentifier:@"style-base-route-layer" source:routeSource];
-    baseRouteLayer.lineColor = [MGLConstantStyleValue valueWithRawValue:[UIColor orangeColor]];
-    baseRouteLayer.lineWidth = [MGLConstantStyleValue valueWithRawValue:@20];
-    baseRouteLayer.lineOpacity = [MGLConstantStyleValue valueWithRawValue:@0.5];
-    baseRouteLayer.lineCap = [MGLConstantStyleValue valueWithRawValue:[NSValue valueWithMGLLineCap:MGLLineCapRound]];
-    baseRouteLayer.lineJoin = [MGLConstantStyleValue valueWithRawValue:[NSValue valueWithMGLLineJoin:MGLLineJoinRound]];
+    baseRouteLayer.lineColor = [NSExpression expressionForConstantValue:[UIColor orangeColor]];
+    baseRouteLayer.lineWidth = [NSExpression expressionForConstantValue:@20];
+    baseRouteLayer.lineOpacity = [NSExpression expressionForConstantValue:@0.5];
+    baseRouteLayer.lineCap = [NSExpression expressionForConstantValue:@"round"];
+    baseRouteLayer.lineJoin = [NSExpression expressionForConstantValue:@"round"];
     [self.mapView.style addLayer:baseRouteLayer];
 
     MGLLineStyleLayer *routeLayer = [[MGLLineStyleLayer alloc] initWithIdentifier:@"style-route-layer" source:routeSource];
-    routeLayer.lineColor = [MGLConstantStyleValue valueWithRawValue:[UIColor whiteColor]];
-    routeLayer.lineWidth = [MGLConstantStyleValue valueWithRawValue:@15];
-    routeLayer.lineOpacity = [MGLConstantStyleValue valueWithRawValue:@0.8];
-    routeLayer.lineCap = [MGLConstantStyleValue valueWithRawValue:[NSValue valueWithMGLLineCap:MGLLineCapRound]];
-    routeLayer.lineJoin = [MGLConstantStyleValue valueWithRawValue:[NSValue valueWithMGLLineJoin:MGLLineJoinRound]];
+    routeLayer.lineColor = [NSExpression expressionForConstantValue:[UIColor whiteColor]];
+    routeLayer.lineWidth = [NSExpression expressionForConstantValue:@15];
+    routeLayer.lineOpacity = [NSExpression expressionForConstantValue:@0.8];
+    routeLayer.lineCap = [NSExpression expressionForConstantValue:@"round"];
+    routeLayer.lineJoin = [NSExpression expressionForConstantValue:@"round"];
     [self.mapView.style addLayer:routeLayer];
 }
 
@@ -1346,70 +1428,44 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
     // source, categorical function that sets any feature with a "fill" attribute value of true to red color and anything without to green
     MGLFillStyleLayer *fillStyleLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:@"fill-layer" source:shapeSource];
-    NSDictionary *stops = @{@(YES): [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor greenColor]]};
-    NSDictionary *fillColorOptions = @{MGLStyleFunctionOptionDefaultValue: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]]};
-    fillStyleLayer.fillColor = [MGLStyleValue<UIColor *> valueWithInterpolationMode:MGLInterpolationModeCategorical
-                                                                        sourceStops:stops
-                                                                      attributeName:@"fill"
-                                                                            options:fillColorOptions];
+    fillStyleLayer.fillColor = [NSExpression expressionWithFormat:@"TERNARY(fill, %@, %@)", [UIColor greenColor], [UIColor redColor]];
 
     // source, identity function that sets any feature with an "opacity" attribute to use that value and anything without to 1.0
-    NSDictionary *fillOpacityOptions = @{MGLStyleFunctionOptionDefaultValue: [MGLStyleValue<NSNumber *> valueWithRawValue:@(1.0)]};
-    fillStyleLayer.fillOpacity = [MGLStyleValue<NSNumber *> valueWithInterpolationMode:MGLInterpolationModeIdentity
-                                                                           sourceStops:nil
-                                                                         attributeName:@"opacity"
-                                                                               options:fillOpacityOptions];
+    fillStyleLayer.fillOpacity = [NSExpression expressionWithFormat:@"TERNARY(opacity != nil, opacity, 1.0)"];
     [self.mapView.style addLayer:fillStyleLayer];
 }
 
-- (void)styleLabelLanguageForLayersNamed:(NSArray<NSString *> *)layers
+- (void)addLatLonGrid
 {
-    _usingLocaleBasedCountryLabels = !_usingLocaleBasedCountryLabels;
-    NSString *bestLanguageForUser = [NSString stringWithFormat:@"{name_%@}", [self bestLanguageForUser]];
-    NSString *language = _usingLocaleBasedCountryLabels ? bestLanguageForUser : @"{name}";
-
-    for (NSString *layerName in layers) {
-        MGLSymbolStyleLayer *layer = (MGLSymbolStyleLayer *)[self.mapView.style layerWithIdentifier:layerName];
-
-        if ([layer isKindOfClass:[MGLSymbolStyleLayer class]]) {
-            if ([layer.text isKindOfClass:[MGLConstantStyleValue class]]) {
-                MGLConstantStyleValue *label = (MGLConstantStyleValue<NSString *> *)layer.text;
-                if ([label.rawValue hasPrefix:@"{name"]) {
-                    layer.text = [MGLStyleValue valueWithRawValue:language];
-                }
-            }
-            else if ([layer.text isKindOfClass:[MGLCameraStyleFunction class]]) {
-                MGLCameraStyleFunction *function = (MGLCameraStyleFunction<NSString *> *)layer.text;
-                NSMutableDictionary *stops = function.stops.mutableCopy;
-                [stops enumerateKeysAndObjectsUsingBlock:^(NSNumber *zoomLevel, MGLConstantStyleValue<NSString *> *stop, BOOL *done) {
-                    if ([stop.rawValue hasPrefix:@"{name"]) {
-                        stops[zoomLevel] = [MGLStyleValue<NSString *> valueWithRawValue:language];
-                    }
-                }];
-                function.stops = stops;
-                layer.text = function;
-            }
-        } else {
-            NSLog(@"%@ is not a symbol style layer", layerName);
-        }
-    }
+    MGLComputedShapeSource *source = [[MGLComputedShapeSource alloc] initWithIdentifier:@"latlon"
+                                                                              options:@{MGLShapeSourceOptionMaximumZoomLevel:@14}];
+    source.dataSource = self;
+    [self.mapView.style addSource:source];
+    MGLLineStyleLayer *lineLayer = [[MGLLineStyleLayer alloc] initWithIdentifier:@"latlonlines"
+                                                                          source:source];
+    [self.mapView.style addLayer:lineLayer];
+    MGLSymbolStyleLayer *labelLayer = [[MGLSymbolStyleLayer alloc] initWithIdentifier:@"latlonlabels"
+                                                                               source:source];
+    labelLayer.text = [NSExpression expressionForKeyPath:@"value"];
+    [self.mapView.style addLayer:labelLayer];
 }
 
 - (NSString *)bestLanguageForUser
 {
-    NSArray *supportedLanguages = @[ @"en", @"es", @"fr", @"de", @"ru", @"zh" ];
-    NSArray<NSString *> *preferredLanguages = [NSLocale preferredLanguages];
-    NSString *bestLanguage;
+    // https://www.mapbox.com/vector-tiles/mapbox-streets-v7/#overview
+    NSArray *supportedLanguages = @[ @"ar", @"en", @"es", @"fr", @"de", @"pt", @"ru", @"zh", @"zh-Hans" ];
+    NSArray<NSString *> *preferredLanguages = [NSBundle preferredLocalizationsFromArray:supportedLanguages forPreferences:[NSLocale preferredLanguages]];
+    NSString *mostSpecificLanguage;
 
-    for (NSString *language in preferredLanguages) {
-        NSString *thisLanguage = [[NSLocale localeWithLocaleIdentifier:language] objectForKey:NSLocaleLanguageCode];
-        if ([supportedLanguages containsObject:thisLanguage]) {
-            bestLanguage = thisLanguage;
-            break;
+    for (NSString *language in preferredLanguages)
+    {
+        if (language.length > mostSpecificLanguage.length)
+        {
+            mostSpecificLanguage = language;
         }
     }
 
-    return bestLanguage ?: @"en";
+    return mostSpecificLanguage ?: @"en";
 }
 
 - (IBAction)startWorldTour
@@ -1543,14 +1599,19 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
             @"Dark",
             @"Satellite",
             @"Satellite Streets",
+            @"Traffic Day",
+            @"Traffic Night",
         ];
         styleURLs = @[
-            [MGLStyle streetsStyleURLWithVersion:MGLStyleDefaultVersion],
-            [MGLStyle outdoorsStyleURLWithVersion:MGLStyleDefaultVersion],
-            [MGLStyle lightStyleURLWithVersion:MGLStyleDefaultVersion],
-            [MGLStyle darkStyleURLWithVersion:MGLStyleDefaultVersion],
-            [MGLStyle satelliteStyleURLWithVersion:MGLStyleDefaultVersion],
-            [MGLStyle satelliteStreetsStyleURLWithVersion:MGLStyleDefaultVersion],
+            [MGLStyle streetsStyleURL],
+            [MGLStyle outdoorsStyleURL],
+            [MGLStyle lightStyleURL],
+            [MGLStyle darkStyleURL],
+            [MGLStyle satelliteStyleURL],
+            [MGLStyle satelliteStreetsStyleURL],
+            [NSURL URLWithString:@"mapbox://styles/mapbox/traffic-day-v2"],
+            [NSURL URLWithString:@"mapbox://styles/mapbox/traffic-night-v2"],
+            
         ];
         NSAssert(styleNames.count == styleURLs.count, @"Style names and URLs don’t match.");
 
@@ -1607,7 +1668,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     [sender setAccessibilityValue:nextAccessibilityValue];
 }
 
-#pragma mark - Map Delegate
+#pragma mark - MGLMapViewDelegate
 
 - (MGLAnnotationView *)mapView:(MGLMapView *)mapView viewForAnnotation:(id<MGLAnnotation>)annotation
 {
@@ -1825,22 +1886,81 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
 - (void)mapViewRegionIsChanging:(MGLMapView *)mapView
 {
-    if (self.reuseQueueStatsEnabled) {
-        NSUInteger queuedAnnotations = 0;
-        for (NSArray *queue in self.mapView.annotationViewReuseQueueByIdentifier.allValues)
-        {
-            queuedAnnotations += queue.count;
-        }
-        self.hudLabel.text = [NSString stringWithFormat:@" Visible: %ld  Queued: %ld", (unsigned long)mapView.visibleAnnotations.count, (unsigned long)queuedAnnotations];
-    } else if (self.showZoomLevelEnabled) {
-        self.hudLabel.text = [NSString stringWithFormat:@" Zoom: %.2f", self.mapView.zoomLevel];
-    }
+    [self updateHUD];
 }
 
 - (void)mapView:(MGLMapView *)mapView regionDidChangeAnimated:(BOOL)animated {
-    if (self.showZoomLevelEnabled) {
-        self.hudLabel.text = [NSString stringWithFormat:@" Zoom: %.2f", self.mapView.zoomLevel];
+    [self updateHUD];
+}
+
+- (void)mapView:(MGLMapView *)mapView didUpdateUserLocation:(MGLUserLocation *)userLocation {
+    [self updateHUD];
+}
+
+- (void)updateHUD {
+    if (!self.reuseQueueStatsEnabled && !self.showZoomLevelEnabled) return;
+
+    NSString *hudString;
+
+    if (self.reuseQueueStatsEnabled) {
+        NSUInteger queuedAnnotations = 0;
+        for (NSArray *queue in self.mapView.annotationViewReuseQueueByIdentifier.allValues) {
+            queuedAnnotations += queue.count;
+        }
+        hudString = [NSString stringWithFormat:@"Visible: %ld  Queued: %ld", (unsigned long)self.mapView.visibleAnnotations.count, (unsigned long)queuedAnnotations];
+    } else if (self.showZoomLevelEnabled) {
+        hudString = [NSString stringWithFormat:@"%.2f ∕ ↕\U0000FE0E%.f° ∕ %.f°", self.mapView.zoomLevel, self.mapView.camera.pitch, self.mapView.direction];
     }
+
+    [self.hudLabel setTitle:hudString forState:UIControlStateNormal];
+}
+
+#pragma mark - MGLComputedShapeSourceDataSource
+
+- (NSArray<id <MGLFeature>>*)featuresInCoordinateBounds:(MGLCoordinateBounds)bounds zoomLevel:(NSUInteger)zoom {
+    double gridSpacing;
+    if(zoom >= 13) {
+        gridSpacing = 0.01;
+    } else if(zoom >= 11) {
+        gridSpacing = 0.05;
+    } else if(zoom == 10) {
+        gridSpacing = .1;
+    } else if(zoom == 9) {
+        gridSpacing = 0.25;
+    } else if(zoom == 8) {
+        gridSpacing = 0.5;
+    } else if (zoom >= 6) {
+        gridSpacing = 1;
+    } else if(zoom == 5) {
+        gridSpacing = 2;
+    } else if(zoom >= 4) {
+        gridSpacing = 5;
+    } else if(zoom == 2) {
+        gridSpacing = 10;
+    } else {
+        gridSpacing = 20;
+    }
+
+    NSMutableArray <id <MGLFeature>> * features = [NSMutableArray array];
+    CLLocationCoordinate2D coords[2];
+
+    for (double y = ceil(bounds.ne.latitude / gridSpacing) * gridSpacing; y >= floor(bounds.sw.latitude / gridSpacing) * gridSpacing; y -= gridSpacing) {
+        coords[0] = CLLocationCoordinate2DMake(y, bounds.sw.longitude);
+        coords[1] = CLLocationCoordinate2DMake(y, bounds.ne.longitude);
+        MGLPolylineFeature *feature = [MGLPolylineFeature polylineWithCoordinates:coords count:2];
+        feature.attributes = @{@"value": @(y)};
+        [features addObject:feature];
+    }
+
+    for (double x = floor(bounds.sw.longitude / gridSpacing) * gridSpacing; x <= ceil(bounds.ne.longitude / gridSpacing) * gridSpacing; x += gridSpacing) {
+        coords[0] = CLLocationCoordinate2DMake(bounds.sw.latitude, x);
+        coords[1] = CLLocationCoordinate2DMake(bounds.ne.latitude, x);
+        MGLPolylineFeature *feature = [MGLPolylineFeature polylineWithCoordinates:coords count:2];
+        feature.attributes = @{@"value": @(x)};
+        [features addObject:feature];
+    }
+
+    return features;
 }
 
 @end

@@ -78,7 +78,16 @@ public class <%- camelize(type) %>Layer extends Layer {
   }
 
 <% } -%>
-<% if (type !== 'background' && type !== 'raster') { -%>
+<% if (type !== 'background' && type !== 'raster' && type !== 'hillshade') { -%>
+  /**
+   * Get the source layer.
+   *
+   * @return sourceLayer the source layer to get
+   */
+  public String getSourceLayer() {
+    return nativeGetSourceLayer();
+  }
+
   /**
    * Set a single filter.
    *

@@ -60,6 +60,15 @@ public class CircleLayer extends Layer {
   }
 
   /**
+   * Get the source layer.
+   *
+   * @return sourceLayer the source layer to get
+   */
+  public String getSourceLayer() {
+    return nativeGetSourceLayer();
+  }
+
+  /**
    * Set a single filter.
    *
    * @param filter the filter to set
@@ -269,6 +278,16 @@ public class CircleLayer extends Layer {
   }
 
   /**
+   * Get the CirclePitchAlignment property
+   *
+   * @return property wrapper value around String
+   */
+  @SuppressWarnings("unchecked")
+  public PropertyValue<String> getCirclePitchAlignment() {
+    return (PropertyValue<String>) new PropertyValue("circle-pitch-alignment", nativeGetCirclePitchAlignment());
+  }
+
+  /**
    * Get the CircleStrokeWidth property
    *
    * @return property wrapper value around Float
@@ -401,6 +420,8 @@ public class CircleLayer extends Layer {
   private native Object nativeGetCircleTranslateAnchor();
 
   private native Object nativeGetCirclePitchScale();
+
+  private native Object nativeGetCirclePitchAlignment();
 
   private native Object nativeGetCircleStrokeWidth();
 

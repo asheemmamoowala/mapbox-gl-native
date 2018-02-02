@@ -3,7 +3,7 @@ author: Mapbox
 author_url: https://www.mapbox.com/
 github_url: https://github.com/mapbox/mapbox-gl-native
 dash_url: https://mapbox.github.io/mapbox-gl-native/macos/docsets/Mapbox.xml
-copyright: '© 2014–2017 [Mapbox](https://www.mapbox.com/). See [license](https://github.com/mapbox/mapbox-gl-native/blob/master/LICENSE.md) for more details.'
+copyright: '© 2014–2018 [Mapbox](https://www.mapbox.com/). See [license](https://github.com/mapbox/mapbox-gl-native/blob/master/LICENSE.md) for more details.'
 
 head: |
   <link rel='shortcut icon' href='https://www.mapbox.com/img/favicon.ico' type='image/x-icon' />
@@ -18,8 +18,10 @@ custom_categories:
   - name: Guides
     children:
       - Working with GeoJSON Data
+      - Predicates and Expressions
       - For Style Authors
       - Using Style Functions at Runtime
+      - Tile URL Templates
       - Info.plist Keys
   - name: Maps
     children:
@@ -27,6 +29,9 @@ custom_categories:
       - MGLMapCamera
       - MGLMapView
       - MGLMapViewDelegate
+      - MGLMapSnapshot
+      - MGLMapSnapshotOptions
+      - MGLMapSnapshotter
   - name: Shapes and Annotations
     children:
       - MGLAnnotation
@@ -44,7 +49,7 @@ custom_categories:
   - name: Styling the Map
     children:
       - MGLStyle
-      - MGLStyleValue
+      - MGLLight
   - name: Content Primitives
     children:
       - MGLFeature
@@ -59,8 +64,11 @@ custom_categories:
     children:
       - MGLSource
       - MGLTileSource
+      - MGLAbstractShapeSource
       - MGLShapeSource
+      - MGLComputedShapeSource
       - MGLRasterSource
+      - MGLRasterDEMSource
       - MGLVectorSource
   - name: Style Layers
     children:
@@ -71,6 +79,8 @@ custom_categories:
       - MGLVectorStyleLayer
       - MGLCircleStyleLayer
       - MGLFillStyleLayer
+      - MGLFillExtrusionStyleLayer
+      - MGLHillshadeStyleLayer
       - MGLLineStyleLayer
       - MGLSymbolStyleLayer
   - name: Offline Maps

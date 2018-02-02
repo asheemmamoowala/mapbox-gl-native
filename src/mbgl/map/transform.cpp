@@ -1,6 +1,5 @@
 #include <mbgl/map/camera.hpp>
 #include <mbgl/map/transform.hpp>
-#include <mbgl/map/view.hpp>
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/mat4.hpp>
 #include <mbgl/util/math.hpp>
@@ -122,8 +121,6 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
     const double scale = state.zoomScale(zoom);
     pitch = util::clamp(pitch, state.min_pitch, state.max_pitch);
 
-    Update update = state.getZoom() == zoom ? Update::Repaint : Update::RecalculateStyle;
-
     // Minimize rotation by taking the shorter path around the circle.
     angle = _normalizeAngle(angle, state.angle);
     state.angle = _normalizeAngle(state.angle, angle);
@@ -153,7 +150,6 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
         if (!padding.isFlush()) {
             state.moveLatLng(frameLatLng, center);
         }
-        return update;
     }, duration);
 }
 
@@ -171,7 +167,7 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
     double angle = camera.angle.value_or(getAngle());
     double pitch = camera.pitch.value_or(getPitch());
 
-    if (std::isnan(zoom)) {
+    if (std::isnan(zoom) || state.size.isEmpty()) {
         return;
     }
 
@@ -238,16 +234,13 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
         return std::log(std::sqrt(b * b + 1) - b);
     };
 
-    // When u₀ = u₁, the optimal path doesn’t require both ascent and descent.
-    bool isClose = std::abs(u1) < 0.000001;
-    // Perform a more or less instantaneous transition if the path is too short.
-    if (isClose && std::abs(w0 - w1) < 0.000001) {
-        easeTo(camera, animation);
-        return;
-    }
-
     /// r₀: Zoom-out factor during ascent.
     double r0 = r(0);
+    double r1 = r(1);
+
+    // When u₀ = u₁, the optimal path doesn’t require both ascent and descent.
+    bool isClose = std::abs(u1) < 1.0 || !std::isfinite(r0) || !std::isfinite(r1);
+
     /** w(s): Returns the visible span on the ground, measured in pixels with
         respect to the initial scale.
 
@@ -265,7 +258,7 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
     };
     /// S: Total length of the flight path, measured in ρ-screenfuls.
     double S = (isClose ? (std::abs(std::log(w1 / w0)) / rho)
-                : ((r(1) - r0) / rho));
+                : ((r1 - r0) / rho));
 
     Duration duration;
     if (animation.duration) {
@@ -293,11 +286,16 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
         /// s: The distance traveled along the flight path, measured in
         /// ρ-screenfuls.
         double s = k * S;
-        double us = u(s);
+        double us = k == 1.0 ? 1.0 : u(s);
 
         // Calculate the current point and zoom level along the flight path.
         Point<double> framePoint = util::interpolate(startPoint, endPoint, us);
         double frameZoom = startZoom + state.scaleZoom(1 / w(s));
+
+        // Zoom can be NaN if size is empty.
+        if (std::isnan(frameZoom)) {
+            frameZoom = zoom;
+        }
 
         // Convert to geographic coordinates and set the new viewpoint.
         LatLng frameLatLng = Projection::unproject(framePoint, startScale);
@@ -313,7 +311,6 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
         if (!padding.isFlush()) {
             state.moveLatLng(frameLatLng, center);
         }
-        return Update::RecalculateStyle;
     }, duration);
 }
 
@@ -410,10 +407,11 @@ double Transform::getZoom() const {
 
 #pragma mark - Bounds
 
-void Transform::setLatLngBounds(const LatLngBounds& bounds) {
-    if (bounds.valid()) {
-        state.setLatLngBounds(bounds);
+void Transform::setLatLngBounds(optional<LatLngBounds> bounds) {
+    if (bounds && !bounds->valid()) {
+        throw std::runtime_error("failed to set bounds: bounds are invalid");
     }
+    state.setLatLngBounds(bounds);
 }
 
 void Transform::setMinZoom(const double minZoom) {
@@ -529,11 +527,37 @@ ViewportMode Transform::getViewportMode() const {
     return state.getViewportMode();
 }
 
+#pragma mark - Projection mode
+
+void Transform::setAxonometric(bool axonometric) {
+    state.axonometric = axonometric;
+}
+
+bool Transform::getAxonometric() const {
+    return state.axonometric;
+}
+
+void Transform::setXSkew(double xSkew) {
+    state.xSkew = xSkew;
+}
+
+double Transform::getXSkew() const {
+    return state.xSkew;
+}
+
+void Transform::setYSkew(double ySkew) {
+    state.ySkew = ySkew;
+}
+
+double Transform::getYSkew() const {
+    return state.ySkew;
+}
+
 #pragma mark - Transition
 
 void Transform::startTransition(const CameraOptions& camera,
                                 const AnimationOptions& animation,
-                                std::function<Update(double)> frame,
+                                std::function<void(double)> frame,
                                 const Duration& duration) {
     if (transitionFinishFn) {
         transitionFinishFn();
@@ -555,12 +579,11 @@ void Transform::startTransition(const CameraOptions& camera,
 
     transitionFrameFn = [isAnimated, animation, frame, anchor, anchorLatLng, this](const TimePoint now) {
         float t = isAnimated ? (std::chrono::duration<float>(now - transitionStart) / transitionDuration) : 1.0;
-        Update result;
         if (t >= 1.0) {
-            result = frame(1.0);
+            frame(1.0);
         } else {
             util::UnitBezier ease = animation.easing ? *animation.easing : util::DEFAULT_TRANSITION_EASE;
-            result = frame(ease.solve(t, 0.001));
+            frame(ease.solve(t, 0.001));
         }
 
         if (anchor) state.moveLatLng(anchorLatLng, *anchor);
@@ -579,7 +602,6 @@ void Transform::startTransition(const CameraOptions& camera,
             // we can only return after this point.
             transitionFrameFn = nullptr;
         }
-        return result;
     };
 
     transitionFinishFn = [isAnimated, animation, this] {
@@ -601,8 +623,10 @@ bool Transform::inTransition() const {
     return transitionFrameFn != nullptr;
 }
 
-Update Transform::updateTransitions(const TimePoint& now) {
-    return transitionFrameFn ? transitionFrameFn(now) : Update::Nothing;
+void Transform::updateTransitions(const TimePoint& now) {
+    if (transitionFrameFn) {
+        transitionFrameFn(now);
+    }
 }
 
 void Transform::cancelTransitions() {

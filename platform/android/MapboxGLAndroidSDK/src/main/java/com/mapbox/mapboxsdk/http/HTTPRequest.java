@@ -22,6 +22,7 @@ import javax.net.ssl.SSLException;
 
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.Dispatcher;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -29,9 +30,16 @@ import okhttp3.Response;
 import okhttp3.internal.Util;
 import timber.log.Timber;
 
+import static android.util.Log.DEBUG;
+import static android.util.Log.INFO;
+import static android.util.Log.WARN;
+
 class HTTPRequest implements Callback {
 
-  private static OkHttpClient mClient = new OkHttpClient();
+  private static OkHttpClient mClient = new OkHttpClient.Builder().dispatcher(getDispatcher()).build();
+  private static boolean logEnabled = true;
+  private static boolean logRequestUrl = false;
+
   private String USER_AGENT_STRING = null;
 
   private static final int CONNECTION_ERROR = 0;
@@ -47,6 +55,14 @@ class HTTPRequest implements Callback {
   private Call mCall;
   private Request mRequest;
 
+  private static Dispatcher getDispatcher() {
+    Dispatcher dispatcher = new Dispatcher();
+    // Matches core limit set on
+    // https://github.com/mapbox/mapbox-gl-native/blob/master/platform/android/src/http_file_source.cpp#L192
+    dispatcher.setMaxRequestsPerHost(20);
+    return dispatcher;
+  }
+
   private native void nativeOnFailure(int type, String message);
 
   private native void nativeOnResponse(int code, String etag, String modified, String cacheControl, String expires,
@@ -56,13 +72,14 @@ class HTTPRequest implements Callback {
     mNativePtr = nativePtr;
 
     try {
-      // Don't try a request if we aren't connected
-      if (!Mapbox.isConnected()) {
+      HttpUrl httpUrl = HttpUrl.parse(resourceUrl);
+      final String host = httpUrl.host().toLowerCase(MapboxConstants.MAPBOX_LOCALE);
+
+      // Don't try a request to remote server if we aren't connected
+      if (!Mapbox.isConnected() && !host.equals("127.0.0.1") && !host.equals("localhost")) {
         throw new NoRouteToHostException("No Internet connection available.");
       }
 
-      HttpUrl httpUrl = HttpUrl.parse(resourceUrl);
-      final String host = httpUrl.host().toLowerCase(MapboxConstants.MAPBOX_LOCALE);
       if (host.equals("mapbox.com") || host.endsWith(".mapbox.com") || host.equals("mapbox.cn")
         || host.endsWith(".mapbox.cn")) {
         if (httpUrl.querySize() == 0) {
@@ -86,7 +103,7 @@ class HTTPRequest implements Callback {
       mCall = mClient.newCall(mRequest);
       mCall.enqueue(this);
     } catch (Exception exception) {
-      onFailure(exception);
+      handleFailure(mCall, exception);
     }
   }
 
@@ -108,21 +125,22 @@ class HTTPRequest implements Callback {
 
   @Override
   public void onResponse(Call call, Response response) throws IOException {
-    if (response.isSuccessful()) {
-      Timber.v(String.format("[HTTP] Request was successful (code = %d).", response.code()));
-    } else {
-      // We don't want to call this unsuccessful because a 304 isn't really an error
-      String message = !TextUtils.isEmpty(response.message()) ? response.message() : "No additional information";
-      Timber.d(String.format(
-        "[HTTP] Request with response code = %d: %s",
-        response.code(), message));
+
+    if (logEnabled) {
+      if (response.isSuccessful()) {
+        Timber.v("[HTTP] Request was successful (code = %s).", response.code());
+      } else {
+        // We don't want to call this unsuccessful because a 304 isn't really an error
+        String message = !TextUtils.isEmpty(response.message()) ? response.message() : "No additional information";
+        Timber.d("[HTTP] Request with response code = %s: %s", response.code(), message);
+      }
     }
 
     byte[] body;
     try {
       body = response.body().bytes();
     } catch (IOException ioException) {
-      onFailure(ioException);
+      onFailure(call, ioException);
       // throw ioException;
       return;
     } finally {
@@ -145,30 +163,16 @@ class HTTPRequest implements Callback {
 
   @Override
   public void onFailure(Call call, IOException e) {
-    onFailure(e);
+    handleFailure(call, e);
   }
 
-  private void onFailure(Exception e) {
-    int type = PERMANENT_ERROR;
-    if ((e instanceof NoRouteToHostException) || (e instanceof UnknownHostException) || (e instanceof SocketException)
-      || (e instanceof ProtocolException) || (e instanceof SSLException)) {
-      type = CONNECTION_ERROR;
-    } else if ((e instanceof InterruptedIOException)) {
-      type = TEMPORARY_ERROR;
-    }
-
+  private void handleFailure(Call call, Exception e) {
     String errorMessage = e.getMessage() != null ? e.getMessage() : "Error processing the request";
+    int type = getFailureType(e);
 
-    if (type == TEMPORARY_ERROR) {
-      Timber.d(String.format(MapboxConstants.MAPBOX_LOCALE,
-        "Request failed due to a temporary error: %s", errorMessage));
-    } else if (type == CONNECTION_ERROR) {
-      Timber.i(String.format(MapboxConstants.MAPBOX_LOCALE,
-        "Request failed due to a connection error: %s", errorMessage));
-    } else {
-      // PERMANENT_ERROR
-      Timber.w(String.format(MapboxConstants.MAPBOX_LOCALE,
-        "Request failed due to a permanent error: %s", errorMessage));
+    if (logEnabled && call != null && call.request() != null) {
+      String requestUrl = call.request().url().toString();
+      logFailure(type, errorMessage, requestUrl);
     }
 
     mLock.lock();
@@ -176,6 +180,26 @@ class HTTPRequest implements Callback {
       nativeOnFailure(type, errorMessage);
     }
     mLock.unlock();
+  }
+
+  private int getFailureType(Exception e) {
+    if ((e instanceof NoRouteToHostException) || (e instanceof UnknownHostException) || (e instanceof SocketException)
+      || (e instanceof ProtocolException) || (e instanceof SSLException)) {
+      return CONNECTION_ERROR;
+    } else if ((e instanceof InterruptedIOException)) {
+      return TEMPORARY_ERROR;
+    }
+    return PERMANENT_ERROR;
+  }
+
+  private void logFailure(int type, String errorMessage, String requestUrl) {
+    Timber.log(
+      type == TEMPORARY_ERROR ? DEBUG : type == CONNECTION_ERROR ? INFO : WARN,
+      "Request failed due to a %s error: %s %s",
+      type == TEMPORARY_ERROR ? "temporary" : type == CONNECTION_ERROR ? "connection" : "permanent",
+      errorMessage,
+      logRequestUrl ? requestUrl : ""
+    );
   }
 
   private String getUserAgent() {
@@ -201,5 +225,17 @@ class HTTPRequest implements Callback {
     } catch (Exception exception) {
       return "";
     }
+  }
+
+  static void enableLog(boolean enabled) {
+    logEnabled = enabled;
+  }
+
+  static void enablePrintRequestUrlOnFailure(boolean enabled) {
+    logRequestUrl = enabled;
+  }
+
+  static void setOKHttpClient(OkHttpClient client) {
+    mClient = client;
   }
 }

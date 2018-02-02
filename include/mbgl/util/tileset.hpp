@@ -1,7 +1,10 @@
 #pragma once
 
 #include <mbgl/util/range.hpp>
-
+#include <mbgl/util/constants.hpp>
+#include <mbgl/util/optional.hpp>
+#include <mbgl/util/geo.hpp>
+#include <tuple>
 #include <vector>
 #include <string>
 #include <cstdint>
@@ -13,11 +16,31 @@ public:
     enum class Scheme : bool { XYZ, TMS };
 
     std::vector<std::string> tiles;
-    Range<uint8_t> zoomRange { 0, 22 };
+    Range<uint8_t> zoomRange;
     std::string attribution;
-    Scheme scheme = Scheme::XYZ;
+    Scheme scheme;
+    optional<LatLngBounds> bounds;
 
-    // TileJSON also includes center, zoom, and bounds, but they are not used by mbgl.
+    Tileset(std::vector<std::string> tiles_ = std::vector<std::string>(),
+            Range<uint8_t> zoomRange_ = { 0, util::DEFAULT_MAX_ZOOM },
+            std::string attribution_ = {},
+            Scheme scheme_ = Scheme::XYZ)
+        : tiles(std::move(tiles_)),
+          zoomRange(std::move(zoomRange_)),
+          attribution(std::move(attribution_)),
+          scheme(scheme_),
+          bounds() {}
+
+    // TileJSON also includes center and zoom but they are not used by mbgl.
+
+    friend bool operator==(const Tileset& lhs, const Tileset& rhs) {
+        return std::tie(lhs.tiles, lhs.zoomRange, lhs.attribution, lhs.scheme, lhs.bounds)
+            == std::tie(rhs.tiles, rhs.zoomRange, rhs.attribution, rhs.scheme, rhs.bounds);
+    }
+
+    friend bool operator!=(const Tileset& lhs, const Tileset& rhs) {
+        return !(lhs == rhs);
+    }
 };
 
 } // namespace mbgl

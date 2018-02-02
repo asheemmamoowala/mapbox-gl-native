@@ -2,6 +2,7 @@
 #include <mbgl/tile/tile_id.hpp>
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/interpolate.hpp>
+#include <mbgl/util/projection.hpp>
 #include <mbgl/math/log2.hpp>
 #include <mbgl/math/clamp.hpp>
 
@@ -26,7 +27,7 @@ void TransformState::matrixFor(mat4& matrix, const UnwrappedTileID& tileID) cons
     matrix::scale(matrix, matrix, s / util::EXTENT, s / util::EXTENT, 1);
 }
 
-void TransformState::getProjMatrix(mat4& projMatrix) const {
+void TransformState::getProjMatrix(mat4& projMatrix, uint16_t nearZ, bool aligned) const {
     if (size.isEmpty()) {
         return;
     }
@@ -45,7 +46,7 @@ void TransformState::getProjMatrix(mat4& projMatrix) const {
     // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
     const double farZ = furthestDistance * 1.01;
 
-    matrix::perspective(projMatrix, getFieldOfView(), double(size.width) / size.height, 1, farZ);
+    matrix::perspective(projMatrix, getFieldOfView(), double(size.width) / size.height, nearZ, farZ);
 
     const bool flippedY = viewportMode == ViewportMode::FlippedY;
     matrix::scale(projMatrix, projMatrix, 1, flippedY ? 1 : -1, 1);
@@ -62,8 +63,35 @@ void TransformState::getProjMatrix(mat4& projMatrix) const {
 
     matrix::rotate_z(projMatrix, projMatrix, getAngle() + getNorthOrientationAngle());
 
-    matrix::translate(projMatrix, projMatrix, pixel_x() - size.width / 2.0f,
-                      pixel_y() - size.height / 2.0f, 0);
+    const double dx = pixel_x() - size.width / 2.0f, dy = pixel_y() - size.height / 2.0f;
+    matrix::translate(projMatrix, projMatrix, dx, dy, 0);
+
+    if (axonometric) {
+        // mat[11] controls perspective
+        projMatrix[11] = 0;
+
+        // mat[8], mat[9] control x-skew, y-skew
+        projMatrix[8] = xSkew;
+        projMatrix[9] = ySkew;
+    }
+
+    matrix::scale(projMatrix, projMatrix, 1, 1,
+                  1.0 / Projection::getMetersPerPixelAtLatitude(getLatLng(LatLng::Unwrapped).latitude(), getZoom()));
+
+    // Make a second projection matrix that is aligned to a pixel grid for rendering raster tiles.
+    // We're rounding the (floating point) x/y values to achieve to avoid rendering raster images to fractional
+    // coordinates. Additionally, we adjust by half a pixel in either direction in case that viewport dimension
+    // is an odd integer to preserve rendering to the pixel grid. We're rotating this shift based on the angle
+    // of the transformation so that 0°, 90°, 180°, and 270° rasters are crisp, and adjust the shift so that
+    // it is always <= 0.5 pixels.
+    if (aligned) {
+        const float xShift = float(size.width % 2) / 2, yShift = float(size.height % 2) / 2;
+        const double angleCos = std::cos(angle), angleSin = std::sin(angle);
+        double devNull;
+        const float dxa = -std::modf(dx, &devNull) + angleCos * xShift + angleSin * yShift;
+        const float dya = -std::modf(dy, &devNull) + angleCos * yShift + angleSin * xShift;
+        matrix::translate(projMatrix, projMatrix, dxa > 0.5 ? dxa - 1 : dxa, dya > 0.5 ? dya - 1 : dya, 0);
+    }
 }
 
 #pragma mark - Dimensions
@@ -128,7 +156,7 @@ double TransformState::getZoom() const {
     return scaleZoom(scale);
 }
 
-int32_t TransformState::getIntegerZoom() const {
+uint8_t TransformState::getIntegerZoom() const {
     return getZoom();
 }
 
@@ -138,12 +166,14 @@ double TransformState::getZoomFraction() const {
 
 #pragma mark - Bounds
 
-void TransformState::setLatLngBounds(const LatLngBounds& bounds_) {
-    bounds = bounds_;
-    setLatLngZoom(getLatLng(LatLng::Unwrapped), getZoom());
+void TransformState::setLatLngBounds(optional<LatLngBounds> bounds_) {
+    if (bounds_ != bounds) {
+        bounds = bounds_;
+        setLatLngZoom(getLatLng(LatLng::Unwrapped), getZoom());
+    }
 }
 
-LatLngBounds TransformState::getLatLngBounds() const {
+optional<LatLngBounds> TransformState::getLatLngBounds() const {
     return bounds;
 }
 
@@ -232,7 +262,6 @@ bool TransformState::isPanning() const {
 bool TransformState::isGestureInProgress() const {
     return gestureInProgress;
 }
-
 
 #pragma mark - Projection
 
@@ -347,10 +376,13 @@ void TransformState::moveLatLng(const LatLng& latLng, const ScreenCoordinate& an
     setLatLngZoom(Projection::unproject(centerCoord + latLngCoord - anchorCoord, scale), getZoom());
 }
 
-void TransformState::setLatLngZoom(const LatLng &latLng, double zoom) {
-    const LatLng constrained = bounds.constrain(latLng);
+void TransformState::setLatLngZoom(const LatLng& latLng, double zoom) {
+    LatLng constrained = latLng;
+    if (bounds) {
+        constrained = bounds->constrain(latLng);
+    }
 
-    double newScale = zoomScale(zoom);
+    double newScale = util::clamp(zoomScale(zoom), min_scale, max_scale);
     const double newWorldSize = newScale * util::tileSize;
     Bc = newWorldSize / util::DEGREES_MAX;
     Cc = newWorldSize / util::M2PI;
@@ -375,6 +407,18 @@ void TransformState::setScalePoint(const double newScale, const ScreenCoordinate
     y = constrainedPoint.y;
     Bc = Projection::worldSize(scale) / util::DEGREES_MAX;
     Cc = Projection::worldSize(scale) / util::M2PI;
+}
+
+float TransformState::getCameraToTileDistance(const UnwrappedTileID& tileID) const {
+    mat4 projectionMatrix;
+    getProjMatrix(projectionMatrix);
+    mat4 tileProjectionMatrix;
+    matrixFor(tileProjectionMatrix, tileID);
+    matrix::multiply(tileProjectionMatrix, projectionMatrix, tileProjectionMatrix);
+    vec4 tileCenter = {{util::tileSize / 2, util::tileSize / 2, 0, 1}};
+    vec4 projectedCenter;
+    matrix::transformMat4(projectedCenter, tileCenter, tileProjectionMatrix);
+    return projectedCenter[3];
 }
 
 } // namespace mbgl

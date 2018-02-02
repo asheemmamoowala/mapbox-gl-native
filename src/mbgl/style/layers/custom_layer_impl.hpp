@@ -14,28 +14,16 @@ public:
     Impl(const std::string& id,
          CustomLayerInitializeFunction,
          CustomLayerRenderFunction,
+         CustomLayerContextLostFunction,
          CustomLayerDeinitializeFunction,
          void* context);
 
-    Impl(const Impl&);
-    ~Impl() final;
-
-    void initialize();
-    void deinitialize();
-    void render(const TransformState&) const;
-
-private:
-    std::unique_ptr<Layer> clone() const override;
-    std::unique_ptr<Layer> cloneRef(const std::string& id) const override;
+    bool hasLayoutDifference(const Layer::Impl&) const override;
     void stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const override;
-
-    void cascade(const CascadeParameters&) final {}
-    bool evaluate(const PropertyEvaluationParameters&) final;
-
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const Layer*>&) const final;
 
     CustomLayerInitializeFunction initializeFn = nullptr;
     CustomLayerRenderFunction renderFn = nullptr;
+    CustomLayerContextLostFunction contextLostFn = nullptr;
     CustomLayerDeinitializeFunction deinitializeFn = nullptr;
     void* context = nullptr;
 };

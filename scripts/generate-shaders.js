@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 
-const path = require('path');
-const fs = require('fs');
+require('flow-remove-types/register');
 
-const inputPath = 'mapbox-gl-js/src/shaders';
+const path = require('path');
 const outputPath = 'src/mbgl/shaders';
 
-require('./style-code');
+var shaders = require('../mapbox-gl-js/src/shaders');
 
-const vertexPrelude = fs.readFileSync(path.join(inputPath, '_prelude.vertex.glsl'));
-const fragmentPrelude = fs.readFileSync(path.join(inputPath, '_prelude.fragment.glsl'));
+delete shaders.heatmap;
+delete shaders.heatmapTexture;
+
+require('./style-code');
 
 writeIfModified(path.join(outputPath, 'preludes.hpp'), `// NOTE: DO NOT CHANGE THIS FILE. IT IS AUTOMATICALLY GENERATED.
 
@@ -33,67 +34,21 @@ namespace mbgl {
 namespace shaders {
 
 const char* vertexPrelude = R"MBGL_SHADER(
-${vertexPrelude}
+${shaders.prelude.vertexSource}
 )MBGL_SHADER";
 const char* fragmentPrelude = R"MBGL_SHADER(
-${fragmentPrelude}
+${shaders.prelude.fragmentSource}
 )MBGL_SHADER";
 
 } // namespace shaders
 } // namespace mbgl
 `);
 
-[
-    'circle',
-    'collision_box',
-    'debug',
-    'fill',
-    'fill_outline',
-    'fill_outline_pattern',
-    'fill_pattern',
-    'line',
-    'line_pattern',
-    'line_sdf',
-    'raster',
-    'symbol_icon',
-    'symbol_sdf'
-].forEach(function (shaderName) {
-    function applyPragmas(source, pragmas) {
-        return source.replace(/#pragma mapbox: ([\w]+) ([\w]+) ([\w]+) ([\w]+)/g, (match, operation, precision, type, name) => {
-            const a_type = type === "float" ? "vec2" : "vec4";
-            return pragmas[operation]
-                .join("\n")
-                .replace(/\{type\}/g, type)
-                .replace(/\{a_type}/g, a_type)
-                .replace(/\{precision\}/g, precision)
-                .replace(/\{name\}/g, name);
-        });
-    }
+for (const key in shaders) {
+    if (key === 'prelude')
+        continue;
 
-    function vertexSource() {
-        const source = fs.readFileSync(path.join(inputPath, shaderName + '.vertex.glsl'), 'utf8');
-        return applyPragmas(source, {
-                define: [
-                    "uniform lowp float a_{name}_t;",
-                    "attribute {precision} {a_type} a_{name};",
-                    "varying {precision} {type} {name};"
-                ],
-                initialize: [
-                    "{name} = unpack_mix_{a_type}(a_{name}, a_{name}_t);"
-                ]
-            });
-    }
-
-    function fragmentSource() {
-        const source = fs.readFileSync(path.join(inputPath, shaderName + '.fragment.glsl'), 'utf8');
-        return applyPragmas(source, {
-                define: [
-                    "varying {precision} {type} {name};"
-                ],
-                initialize: [
-                ]
-            });
-    }
+    const shaderName = key.replace(/[A-Z]+/g, (match) => `_${match.toLowerCase()}`);
 
     writeIfModified(path.join(outputPath, `${shaderName}.hpp`), `// NOTE: DO NOT CHANGE THIS FILE. IT IS AUTOMATICALLY GENERATED.
 
@@ -122,13 +77,13 @@ namespace shaders {
 
 const char* ${shaderName}::name = "${shaderName}";
 const char* ${shaderName}::vertexSource = R"MBGL_SHADER(
-${vertexSource()}
+${shaders[key].vertexSource}
 )MBGL_SHADER";
 const char* ${shaderName}::fragmentSource = R"MBGL_SHADER(
-${fragmentSource()}
+${shaders[key].fragmentSource}
 )MBGL_SHADER";
 
 } // namespace shaders
 } // namespace mbgl
 `);
-});
+}

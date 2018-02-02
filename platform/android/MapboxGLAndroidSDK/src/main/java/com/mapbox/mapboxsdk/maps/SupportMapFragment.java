@@ -11,6 +11,9 @@ import android.view.ViewGroup;
 
 import com.mapbox.mapboxsdk.utils.MapFragmentUtils;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Support Fragment wrapper around a map view.
  * <p>
@@ -25,10 +28,11 @@ import com.mapbox.mapboxsdk.utils.MapFragmentUtils;
  *
  * @see #getMapAsync(OnMapReadyCallback)
  */
-public class SupportMapFragment extends Fragment {
+public class SupportMapFragment extends Fragment implements OnMapReadyCallback {
 
+  private final List<OnMapReadyCallback> mapReadyCallbackList = new ArrayList<>();
+  private MapboxMap mapboxMap;
   private MapView map;
-  private OnMapReadyCallback onMapReadyCallback;
 
   /**
    * Creates a default MapFragment instance
@@ -63,7 +67,8 @@ public class SupportMapFragment extends Fragment {
   public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
     super.onCreateView(inflater, container, savedInstanceState);
     Context context = inflater.getContext();
-    return map = new MapView(context, MapFragmentUtils.resolveArgs(context, getArguments()));
+    map = new MapView(context, MapFragmentUtils.resolveArgs(context, getArguments()));
+    return map;
   }
 
   /**
@@ -76,6 +81,15 @@ public class SupportMapFragment extends Fragment {
   public void onViewCreated(View view, Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     map.onCreate(savedInstanceState);
+    map.getMapAsync(this);
+  }
+
+  @Override
+  public void onMapReady(MapboxMap mapboxMap) {
+    this.mapboxMap = mapboxMap;
+    for (OnMapReadyCallback onMapReadyCallback : mapReadyCallbackList) {
+      onMapReadyCallback.onMapReady(mapboxMap);
+    }
   }
 
   /**
@@ -85,7 +99,6 @@ public class SupportMapFragment extends Fragment {
   public void onStart() {
     super.onStart();
     map.onStart();
-    map.getMapAsync(onMapReadyCallback);
   }
 
   /**
@@ -142,6 +155,7 @@ public class SupportMapFragment extends Fragment {
   public void onDestroyView() {
     super.onDestroyView();
     map.onDestroy();
+    mapReadyCallbackList.clear();
   }
 
   /**
@@ -150,6 +164,10 @@ public class SupportMapFragment extends Fragment {
    * @param onMapReadyCallback The callback to be invoked.
    */
   public void getMapAsync(@NonNull final OnMapReadyCallback onMapReadyCallback) {
-    this.onMapReadyCallback = onMapReadyCallback;
+    if (mapboxMap == null) {
+      mapReadyCallbackList.add(onMapReadyCallback);
+    } else {
+      onMapReadyCallback.onMapReady(mapboxMap);
+    }
   }
 }

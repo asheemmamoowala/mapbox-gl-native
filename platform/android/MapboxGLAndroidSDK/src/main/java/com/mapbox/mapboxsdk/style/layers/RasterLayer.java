@@ -250,24 +250,6 @@ public class RasterLayer extends Layer {
     return (PropertyValue<Float>) new PropertyValue("raster-fade-duration", nativeGetRasterFadeDuration());
   }
 
-  /**
-   * Get the RasterFadeDuration property transition options
-   *
-   * @return transition options for Float
-   */
-  public TransitionOptions getRasterFadeDurationTransition() {
-    return nativeGetRasterFadeDurationTransition();
-  }
-
-  /**
-   * Set the RasterFadeDuration property transition options
-   *
-   * @param options transition options for Float
-   */
-  public void setRasterFadeDurationTransition(TransitionOptions options) {
-    nativeSetRasterFadeDurationTransition(options.getDuration(), options.getDelay());
-  }
-
   private native Object nativeGetRasterOpacity();
 
   private native TransitionOptions nativeGetRasterOpacityTransition();
@@ -305,10 +287,6 @@ public class RasterLayer extends Layer {
   private native void nativeSetRasterContrastTransition(long duration, long delay);
 
   private native Object nativeGetRasterFadeDuration();
-
-  private native TransitionOptions nativeGetRasterFadeDurationTransition();
-
-  private native void nativeSetRasterFadeDurationTransition(long duration, long delay);
 
   @Override
   protected native void finalize() throws Throwable;

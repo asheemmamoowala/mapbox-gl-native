@@ -60,6 +60,15 @@ public class SymbolLayer extends Layer {
   }
 
   /**
+   * Get the source layer.
+   *
+   * @return sourceLayer the source layer to get
+   */
+  public String getSourceLayer() {
+    return nativeGetSourceLayer();
+  }
+
+  /**
    * Set a single filter.
    *
    * @param filter the filter to set
@@ -240,6 +249,26 @@ public class SymbolLayer extends Layer {
   @SuppressWarnings("unchecked")
   public PropertyValue<Float[]> getIconOffset() {
     return (PropertyValue<Float[]>) new PropertyValue("icon-offset", nativeGetIconOffset());
+  }
+
+  /**
+   * Get the IconAnchor property
+   *
+   * @return property wrapper value around String
+   */
+  @SuppressWarnings("unchecked")
+  public PropertyValue<String> getIconAnchor() {
+    return (PropertyValue<String>) new PropertyValue("icon-anchor", nativeGetIconAnchor());
+  }
+
+  /**
+   * Get the IconPitchAlignment property
+   *
+   * @return property wrapper value around String
+   */
+  @SuppressWarnings("unchecked")
+  public PropertyValue<String> getIconPitchAlignment() {
+    return (PropertyValue<String>) new PropertyValue("icon-pitch-alignment", nativeGetIconPitchAlignment());
   }
 
   /**
@@ -881,6 +910,10 @@ public class SymbolLayer extends Layer {
   private native Object nativeGetIconKeepUpright();
 
   private native Object nativeGetIconOffset();
+
+  private native Object nativeGetIconAnchor();
+
+  private native Object nativeGetIconPitchAlignment();
 
   private native Object nativeGetTextPitchAlignment();
 

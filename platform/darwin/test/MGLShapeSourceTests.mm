@@ -2,6 +2,7 @@
 
 #import <Mapbox/Mapbox.h>
 #import "MGLFeature_Private.h"
+#import "MGLAbstractShapeSource_Private.h"
 #import "MGLShapeSource_Private.h"
 #import "MGLSource_Private.h"
 
@@ -297,7 +298,10 @@
     // when a shape is included in the features array
     MGLPolygon *polygon = [MGLPolygon polygonWithCoordinates:coordinates count:sizeof(coordinates)/sizeof(coordinates[0]) interiorPolygons:nil];
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wobjc-literal-conversion"
     XCTAssertThrowsSpecificNamed([[MGLShapeSource alloc] initWithIdentifier:@"source-id-invalid" features:@[polygon] options:nil], NSException, NSInvalidArgumentException, @"Shape source should raise an exception if a shape is sent to the features initializer");
+#pragma clang diagnostic pop
 }
 
 - (void)testMGLShapeSourceWithShapesConvenienceInitializer {

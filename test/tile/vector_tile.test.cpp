@@ -7,13 +7,14 @@
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/map/transform.hpp>
 #include <mbgl/style/style.hpp>
-#include <mbgl/style/query.hpp>
-#include <mbgl/style/update_parameters.hpp>
 #include <mbgl/style/layers/symbol_layer.hpp>
-#include <mbgl/renderer/symbol_bucket.hpp>
-#include <mbgl/text/collision_tile.hpp>
+#include <mbgl/renderer/tile_parameters.hpp>
+#include <mbgl/renderer/buckets/symbol_bucket.hpp>
+#include <mbgl/renderer/query.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
+#include <mbgl/renderer/image_manager.hpp>
+#include <mbgl/text/glyph_manager.hpp>
 
 #include <memory>
 
@@ -25,11 +26,13 @@ public:
     TransformState transformState;
     util::RunLoop loop;
     ThreadPool threadPool { 1 };
-    AnnotationManager annotationManager { 1.0 };
-    style::Style style { fileSource, 1.0 };
+    style::Style style { loop, fileSource, 1 };
+    AnnotationManager annotationManager { style };
+    ImageManager imageManager;
+    GlyphManager glyphManager { fileSource };
     Tileset tileset { { "https://example.com" }, { 0, 22 }, "none" };
 
-    style::UpdateParameters updateParameters {
+    TileParameters tileParameters {
         1.0,
         MapDebugOptions(),
         transformState,
@@ -37,35 +40,43 @@ public:
         fileSource,
         MapMode::Continuous,
         annotationManager,
-        style
+        imageManager,
+        glyphManager,
+        0
     };
 };
 
 TEST(VectorTile, setError) {
     VectorTileTest test;
-    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.updateParameters, test.tileset);
+    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, test.tileset);
     tile.setError(std::make_exception_ptr(std::runtime_error("test")));
     EXPECT_FALSE(tile.isRenderable());
+    EXPECT_TRUE(tile.isLoaded());
+    EXPECT_TRUE(tile.isComplete());
 }
 
 TEST(VectorTile, onError) {
     VectorTileTest test;
-    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.updateParameters, test.tileset);
-    tile.onError(std::make_exception_ptr(std::runtime_error("test")));
-    EXPECT_TRUE(tile.isRenderable());
+    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, test.tileset);
+    tile.onError(std::make_exception_ptr(std::runtime_error("test")), 0);
+
+    EXPECT_FALSE(tile.isRenderable());
+    EXPECT_TRUE(tile.isLoaded());
+    EXPECT_TRUE(tile.isComplete());
 }
 
 TEST(VectorTile, Issue7615) {
     VectorTileTest test;
-    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.updateParameters, test.tileset);
+    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, test.tileset);
 
     style::SymbolLayer symbolLayer("symbol", "source");
+    std::vector<SymbolInstance> symbolInstances;
     auto symbolBucket = std::make_shared<SymbolBucket>(
         style::SymbolLayoutProperties::PossiblyEvaluated(),
         std::map<
             std::string,
-            std::pair<style::IconPaintProperties::Evaluated, style::TextPaintProperties::Evaluated>>(),
-        16.0f, 1.0f, 0.0f, false, false);
+            std::pair<style::IconPaintProperties::PossiblyEvaluated, style::TextPaintProperties::PossiblyEvaluated>>(),
+        16.0f, 1.0f, 0.0f, false, false, false, std::move(symbolInstances));
     
     // Simulate placement of a symbol layer.
     tile.onPlacement(GeometryTile::PlacementResult {
@@ -73,24 +84,23 @@ TEST(VectorTile, Issue7615) {
             symbolLayer.getID(),
             symbolBucket
         }},
-        nullptr,
-        0
-    });
+        {},
+        {},
+    }, 0);
 
     // Subsequent onLayout should not cause the existing symbol bucket to be discarded.
     tile.onLayout(GeometryTile::LayoutResult {
-        {},
+        std::unordered_map<std::string, std::shared_ptr<Bucket>>(),
         nullptr,
         nullptr,
-        0
-    });
+    }, 0);
 
-    EXPECT_EQ(symbolBucket.get(), tile.getBucket(symbolLayer));
+    EXPECT_EQ(symbolBucket.get(), tile.getBucket(*symbolLayer.baseImpl));
 }
 
 TEST(VectorTile, Issue8542) {
     VectorTileTest test;
-    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.updateParameters, test.tileset);
+    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, test.tileset);
 
     // Query before data is set
     std::vector<Feature> result;

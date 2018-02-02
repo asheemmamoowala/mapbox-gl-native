@@ -2,6 +2,8 @@
 
 #include <mbgl/util/color.hpp>
 #include <mbgl/util/range.hpp>
+#include <mbgl/style/position.hpp>
+#include <mbgl/style/expression/value.hpp>
 
 #include <array>
 #include <vector>
@@ -46,6 +48,47 @@ public:
     }
 };
 
+
+// In order to accept Array<Number, N> as an output value for Curve
+// expressions, we need to have an interpolatable std::vector type.
+// However, style properties like line-dasharray are represented using
+// std::vector<float>, and should NOT be considered interpolatable.
+// So, we use std::vector<Value> to represent expression array values,
+// asserting that (a) the vectors are the same size, and (b) they contain
+// only numeric values.  (These invariants should be relatively safe,
+// being enforced by the expression type system.)
+template<>
+struct Interpolator<std::vector<style::expression::Value>> {
+    std::vector<style::expression::Value> operator()(const std::vector<style::expression::Value>& a,
+                                  const std::vector<style::expression::Value>& b,
+                                  const double t) const {
+        assert(a.size() == b.size());
+        if (a.size() == 0) return {};
+        std::vector<style::expression::Value> result;
+        for (std::size_t i = 0; i < a.size(); i++) {
+            assert(a[i].template is<double>());
+            assert(b[i].template is<double>());
+            style::expression::Value item = interpolate(
+                a[i].template get<double>(),
+                b[i].template get<double>(),
+                t);
+            result.push_back(item);
+        }
+        return result;
+    }
+};
+
+template <>
+struct Interpolator<style::Position> {
+public:
+    style::Position operator()(const style::Position& a, const style::Position& b, const double t) {
+        auto pos = style::Position();
+        auto interpolated = interpolate(a.getCartesian(), b.getCartesian(), t);
+        pos.setCartesian(interpolated);
+        return { pos };
+    }
+};
+
 template <>
 struct Interpolator<Color> {
 public:
@@ -83,7 +126,13 @@ struct Interpolator<std::vector<T>>
     : Uninterpolated {};
 
 template <class T>
-constexpr bool Interpolatable = !std::is_base_of<Uninterpolated, Interpolator<T>>::value;
+struct Interpolatable
+    : std::conditional_t<
+      !std::is_base_of<Uninterpolated, Interpolator<T>>::value,
+      std::true_type,
+      std::false_type> {};
+
+
 
 } // namespace util
 } // namespace mbgl

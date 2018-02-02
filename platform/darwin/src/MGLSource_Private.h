@@ -26,7 +26,7 @@ struct SourceWrapper {
  Initializes and returns a source with a raw pointer to the backing store,
  associated with a style.
  */
-- (instancetype)initWithRawSource:(mbgl::style::Source *)rawSource;
+- (instancetype)initWithRawSource:(mbgl::style::Source *)rawSource mapView:(nullable MGLMapView *)mapView;
 
 /**
  Initializes and returns a source with an owning pointer to the backing store,
@@ -44,8 +44,14 @@ struct SourceWrapper {
 @property (nonatomic, readonly) mbgl::style::Source *rawSource;
 
 /**
- Adds the mbgl source that this object represents to the mbgl map.
+ The map view whose style currently contains the source.
+ If the source is not currently part of any map view’s style, this property is
+ set to `nil`.
+ */
+@property (nonatomic, readonly, weak) MGLMapView *mapView;
 
+/**
+ Adds the mbgl source that this object represents to the mbgl map.
  Once a mbgl source is added, ownership of the object is transferred to the
  `mbgl::Map` and this object no longer has an active unique_ptr reference to the
  `mbgl::Source`. If this object's mbgl source is in that state, the mbgl source
@@ -57,7 +63,6 @@ struct SourceWrapper {
 
 /**
  Removes the mbgl source that this object represents from the mbgl map.
-
  When a mbgl source is removed, ownership of the object is transferred back
  to the `MGLSource` instance and the unique_ptr reference is valid again. It is
  safe to add the source back to the style after it is removed.
