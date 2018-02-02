@@ -24,6 +24,21 @@ OfflineTilePyramidRegionDefinition::OfflineTilePyramidRegionDefinition(
     }
 }
 
+OfflineTilePyramidRegionDefinition::OfflineTilePyramidRegionDefinition(
+    std::string styleUrl_, LatLngBounds bounds_, const Geometry<double>&, double minZoom_, double maxZoom_, float pixelRatio_)
+    : styleURL(std::move(styleUrl_)),
+      bounds(std::move(bounds_)),
+      minZoom(minZoom_),
+      maxZoom(maxZoom_),
+      pixelRatio(pixelRatio_) {
+    if (minZoom < 0 || maxZoom < 0 || maxZoom < minZoom || pixelRatio < 0 ||
+        !std::isfinite(minZoom) || std::isnan(maxZoom) || !std::isfinite(pixelRatio)) {
+        throw std::invalid_argument("Invalid offline region definition");
+    }
+    //TODO: AHM: Use geom for tile cover computation;
+}
+
+
 std::vector<CanonicalTileID> OfflineTilePyramidRegionDefinition::tileCover(style::SourceType type, uint16_t tileSize, const Range<uint8_t>& zoomRange) const {
     const Range<uint8_t> clampedZoomRange = coveringZoomRange(type, tileSize, zoomRange);
 

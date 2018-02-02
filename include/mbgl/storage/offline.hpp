@@ -5,6 +5,7 @@
 #include <mbgl/util/optional.hpp>
 #include <mbgl/style/types.hpp>
 #include <mbgl/storage/response.hpp>
+#include <mbgl/util/geometry.hpp>
 
 #include <string>
 #include <vector>
@@ -28,6 +29,8 @@ class TileID;
 class OfflineTilePyramidRegionDefinition {
 public:
     OfflineTilePyramidRegionDefinition(std::string, LatLngBounds, double, double, float);
+
+    OfflineTilePyramidRegionDefinition(std::string, LatLngBounds, const Geometry<double>&, double, double, float);
 
     /* Private */
     std::vector<CanonicalTileID> tileCover(style::SourceType, uint16_t tileSize, const Range<uint8_t>& zoomRange) const;
