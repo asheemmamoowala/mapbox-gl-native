@@ -124,6 +124,7 @@ std::vector<UnwrappedTileID> tileCover(const Point<double>& tl,
     return result;
 }
 
+
 } // namespace
 
 int32_t coveringZoomLevel(double zoom, style::SourceType type, uint16_t size) {
@@ -153,6 +154,50 @@ std::vector<UnwrappedTileID> tileCover(const LatLngBounds& bounds_, int32_t z) {
         TileCoordinate::fromLatLng(z, bounds.southwest()).p,
         TileCoordinate::fromLatLng(z, bounds.center()).p,
         z);
+}
+
+UnwrappedTileID pointToTile(const Point<double>& pt, int32_t zoom, uint16_t tileSize_) {
+    auto projectedPoint = Projection::project({ pt.y, pt.x }, zoom, tileSize_);
+    return UnwrappedTileID(zoom,
+        floor(projectedPoint.x/tileSize_),
+        floor(projectedPoint.y/tileSize_));
+}
+
+std::vector<UnwrappedTileID> tileCover(const Geometry<double>& geom, int32_t zoom ) {
+    return {};
+    
+    struct ToTileCover {
+        int32_t zoom;
+        std::vector<UnwrappedTileID> operator()(const Point<double>& g) const {
+            return { pointToTile(g, zoom, util::tileSize) };
+        }
+        std::vector<UnwrappedTileID> operator()(const MultiPoint<double>& g) const {
+            std::vector<UnwrappedTileID> _tiles;
+            for (auto& pt: g) {
+                _tiles.push_back(pointToTile(pt, zoom, util::tileSize));
+            };
+            return _tiles;
+        }
+        std::vector<UnwrappedTileID> operator()(const LineString<double>& ) const {
+            return {};
+        }
+        std::vector<UnwrappedTileID> operator()(const MultiLineString<double>& ) const {
+            return {};
+        }
+        std::vector<UnwrappedTileID> operator()(const Polygon<double>& ) const {
+            return {};
+        }
+        std::vector<UnwrappedTileID> operator()(const MultiPolygon<double>& ) const {
+            return {};
+        }
+        std::vector<UnwrappedTileID> operator()(const mapbox::geometry::geometry_collection<double>& ) const {
+            return {};
+        }
+    };
+    ToTileCover ttc;
+    ttc.zoom = zoom;
+    auto tiles = apply_visitor(ttc, geom);
+    return tiles;
 }
 
 std::vector<UnwrappedTileID> tileCover(const TransformState& state, int32_t z) {
